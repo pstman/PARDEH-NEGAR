@@ -12,8 +12,8 @@ binding = "ASSETS"
 # Cloudflare Workers KV Namespace binding for Blog Database
 [[kv_namespaces]]
 binding = "BLOG_KV"
-id = "PARDEH_NEGAR_KV_ID"
-preview_id = "PARDEH_NEGAR_KV_PREVIEW_ID"
+id = "ba597afb355c4abcbe22f7692c9bd802"
+preview_id = "ba597afb355c4abcbe22f7692c9bd802"
 
 # Environment variables
 [vars]
