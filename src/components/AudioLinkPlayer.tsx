@@ -2,14 +2,15 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * پلیر صوتی شیک، مینیمال و واکنشی برای پخش صوت‌های پژوهشی و پیوست‌های صوتی وبلاگ
- * پشتیبانی کامل و بهینه‌سازی‌شده از انواع فرمت‌های صوتی به‌ویژه M4A (MPEG-4 Audio)، MP3، OGG، WAV، AAC
- * طراحی اختصاصی استودیو اینامیکس
+ * پخش‌کننده شنیداری سبک و واکنشی برای نواها و پیوست‌های پژوهشی
+ * پشتیبانی کامل از انواع فرمت‌های استاندارد صوتی (.m4a, .mp3, .ogg, .wav, .flac)
+ * همراه با نمایشگر موجی و طیف‌نگار دوبعدی بسیار سبک با بار پردازشی اندک
+ * نگارش به زبان فارسی پالوده و پاکیزه با اصطلاحات تخصصی خنیاگری
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, RotateCcw, ExternalLink, Music, Radio } from 'lucide-react';
-import { audioEngine } from '../utils/audioEngine';
+import { Play, Pause, Volume2, VolumeX, RotateCcw, ExternalLink } from 'lucide-react';
+import { AudioWaveformVisualizer } from './AudioWaveformVisualizer';
 
 interface AudioLinkPlayerProps {
   audioUrl: string;
@@ -19,7 +20,7 @@ interface AudioLinkPlayerProps {
 
 export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
   audioUrl,
-  title = 'فایل صوتی پیوست',
+  title = 'پرونده شنیداری پیوست',
   className = ''
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -28,49 +29,52 @@ export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [useSynthFallback, setUseSynthFallback] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Format detection
+  // Resolve acoustic:// references to real standard audio URLs
+  const resolvedUrl = audioUrl.startsWith('acoustic://')
+    ? (audioUrl.includes('violin')
+        ? 'https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/violin/A4.mp3'
+        : audioUrl.includes('continuum')
+        ? 'https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/harp/D4.mp3'
+        : 'https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/C4.mp3')
+    : audioUrl;
+
+  // Format detection with pure Persian descriptions
   const getAudioFormat = (url: string) => {
     const clean = url.split('?')[0].toLowerCase();
     if (clean.endsWith('.m4a') || clean.endsWith('.mp4a')) {
-      return { label: 'M4A (MPEG-4 Audio)', mime: 'audio/mp4; codecs="mp4a.40.2"', color: 'text-[#38BDF8] bg-[#0C2538] border-[#0284C7]/50' };
+      return { label: 'M4A (فشرده باکیفیت)', mime: 'audio/mp4; codecs="mp4a.40.2"', color: 'text-[#38BDF8] bg-[#0C2538] border-[#0284C7]/50' };
     }
     if (clean.endsWith('.mp3')) {
-      return { label: 'MP3 Audio', mime: 'audio/mpeg', color: 'text-[#E5A836] bg-[#2A1F18] border-[#E5A836]/40' };
+      return { label: 'MP3 استاندارد', mime: 'audio/mpeg', color: 'text-[#E5A836] bg-[#2A1F18] border-[#E5A836]/40' };
     }
     if (clean.endsWith('.ogg') || clean.endsWith('.oga')) {
       return { label: 'OGG Vorbis', mime: 'audio/ogg', color: 'text-[#34D399] bg-[#14261C] border-[#10B981]/40' };
     }
     if (clean.endsWith('.wav')) {
-      return { label: 'WAV Lossless', mime: 'audio/wav', color: 'text-[#A78BFA] bg-[#221834] border-[#8B5CF6]/40' };
-    }
-    if (clean.endsWith('.aac')) {
-      return { label: 'AAC Audio', mime: 'audio/aac', color: 'text-[#38BDF8] bg-[#0C2538] border-[#0284C7]/50' };
+      return { label: 'WAV بدون افت کیفیت', mime: 'audio/wav', color: 'text-[#A78BFA] bg-[#221834] border-[#8B5CF6]/40' };
     }
     if (clean.endsWith('.flac')) {
-      return { label: 'FLAC Lossless', mime: 'audio/flac', color: 'text-[#F472B6] bg-[#2D1623] border-[#EC4899]/40' };
+      return { label: 'FLAC خالص استودیویی', mime: 'audio/flac', color: 'text-[#F472B6] bg-[#2D1623] border-[#EC4899]/40' };
     }
-    return { label: 'Audio Stream', mime: 'audio/*', color: 'text-[#E5A836] bg-[#2A1F18] border-[#594234]' };
+    return { label: 'جریان شنیداری استاندارد', mime: 'audio/*', color: 'text-[#E5A836] bg-[#2A1F18] border-[#594234]' };
   };
 
-  const formatInfo = getAudioFormat(audioUrl);
+  const formatInfo = getAudioFormat(resolvedUrl);
 
   useEffect(() => {
-    // Reset state on URL change
     setIsPlaying(false);
     setCurrentTime(0);
-    setUseSynthFallback(false);
     setIsLoading(false);
 
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.load();
     }
-  }, [audioUrl]);
+  }, [resolvedUrl]);
 
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
@@ -92,32 +96,10 @@ export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
 
   const handleError = () => {
     setIsLoading(false);
-    // If external audio fails to load or CORS blocks it, offer acoustic demonstration option
-    setUseSynthFallback(true);
+    setIsPlaying(false);
   };
 
   const togglePlay = () => {
-    audioEngine.initContext();
-
-    if (useSynthFallback) {
-      if (isPlaying) {
-        audioEngine.stopAll();
-        setIsPlaying(false);
-      } else {
-        setIsPlaying(true);
-        // Play acoustic demonstration motif
-        audioEngine.playScaleSequence(
-          [69, 71, 72, 74, 76, 74, 72, 71, 69],
-          { 71: -45 },
-          'santur',
-          'glissando',
-          () => {},
-          () => setIsPlaying(false)
-        );
-      }
-      return;
-    }
-
     if (!audioRef.current) return;
 
     if (isPlaying) {
@@ -130,9 +112,10 @@ export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
           setIsPlaying(true);
           setIsLoading(false);
         })
-        .catch(() => {
+        .catch((err) => {
+          console.warn('پخش مستقیم با وقفه مواجه شد:', err);
           setIsLoading(false);
-          setUseSynthFallback(true);
+          setIsPlaying(false);
         });
     }
   };
@@ -140,7 +123,7 @@ export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = parseFloat(e.target.value);
     setCurrentTime(newTime);
-    if (audioRef.current && !useSynthFallback) {
+    if (audioRef.current) {
       audioRef.current.currentTime = newTime;
     }
   };
@@ -168,7 +151,7 @@ export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
   };
 
   const cyclePlaybackRate = () => {
-    const rates = [1, 1.25, 1.5, 0.85];
+    const rates = [1, 1.25, 0.85];
     const nextIdx = (rates.indexOf(playbackRate) + 1) % rates.length;
     const nextRate = rates[nextIdx];
     setPlaybackRate(nextRate);
@@ -188,25 +171,23 @@ export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
 
   return (
     <div
-      className={`w-full bg-gradient-to-r from-[#1E1612] via-[#2A1F18] to-[#1E1612] border border-[#E5A836]/40 rounded-xl p-3 sm:p-4 shadow-lg text-[#F5EEDB] ${className}`}
+      className={`w-full bg-gradient-to-r from-[#1E1612] via-[#2A1F18] to-[#1E1612] border border-[#E5A836]/40 rounded-xl p-3 sm:p-4 shadow-lg text-[#F5EEDB] font-persian ${className}`}
       dir="rtl"
     >
-      {/* HTML5 Audio with multiple sources for maximum format compatibility (.m4a, .mp3, etc.) */}
+      {/* پرونده شنیداری واقعی و استاندارد HTML5 */}
       <audio
         ref={audioRef}
+        src={resolvedUrl}
         preload="metadata"
         playsInline
         onLoadedMetadata={handleLoadedMetadata}
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleEnded}
         onError={handleError}
-      >
-        <source src={audioUrl} type={formatInfo.mime} />
-        <source src={audioUrl} />
-      </audio>
+      />
 
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Play/Pause Button & Title */}
+        {/* دکمه پخش/درنگ و عنوان نغمه */}
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={togglePlay}
@@ -216,7 +197,7 @@ export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
                 ? 'bg-[#8B2635] text-[#FFF5E6] border-[#E5A836] shadow-[#8B2635]/50 scale-105'
                 : 'bg-[#D97706] hover:bg-[#E5A836] text-black border-amber-300'
             }`}
-            title={isPlaying ? 'توقف' : 'پخش'}
+            title={isPlaying ? 'درنگ' : 'پخش آوا'}
           >
             {isPlaying ? (
               <Pause size={20} className="fill-current" />
@@ -236,43 +217,27 @@ export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
             </div>
 
             <div className="flex items-center gap-2 text-[10px] text-[#A6937C] mt-0.5">
-              <span>{useSynthFallback ? 'پیش‌نمایش آکوستیک زنده' : 'پخش آنلاین رسانه'}</span>
+              <span>پخش مستقیم استودیویی</span>
               <span>•</span>
               <span className="font-mono text-[#E5A836]">
-                {formatTime(currentTime)} / {formatTime(duration || 30)}
+                {formatTime(currentTime)} / {formatTime(duration || 26)}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Dynamic Waveform Bars Animation during playback */}
-        <div className="flex items-center justify-center gap-0.5 h-6 px-3 bg-[#140F0C] rounded-lg border border-[#594234]/40 shrink-0">
-          {[12, 18, 24, 16, 20, 26, 14, 22, 10, 18, 15, 21].map((h, i) => (
-            <span
-              key={i}
-              className={`w-1 rounded-full transition-all duration-300 ${
-                isPlaying ? 'bg-[#E5A836] animate-pulse' : 'bg-[#594234]/60'
-              }`}
-              style={{
-                height: isPlaying ? `${Math.max(6, (h * (i % 2 === 0 ? 1.2 : 0.8)) % 24)}px` : '6px',
-                animationDelay: `${i * 80}ms`
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Controls: Speed, Volume, Reset, Direct link */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Speed Toggle */}
+        {/* دکمه‌های کنترل: تندی، بلندی آوا، بازآغاز و پیوند مستقیم */}
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          {/* دگرگونی تندی نواخت */}
           <button
             onClick={cyclePlaybackRate}
             className="px-2 py-1 rounded bg-[#18120E] hover:bg-[#2A1F18] text-[#E5A836] text-[10px] font-mono font-bold border border-[#594234]/60 transition"
-            title="تغییر سرعت پخش"
+            title="دگرگونی تندی نواختن"
           >
             {playbackRate}x
           </button>
 
-          {/* Volume */}
+          {/* بلندی آوا */}
           <button
             onClick={toggleMute}
             className="text-[#C4B59D] hover:text-[#FFF5E6] p-1.5 transition"
@@ -289,10 +254,10 @@ export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
             value={isMuted ? 0 : volume}
             onChange={handleVolumeChange}
             className="w-14 sm:w-16 h-1 accent-[#E5A836] bg-[#3D2E24] rounded-lg cursor-pointer"
-            title="میزان صدای پلیر"
+            title="بلندی آوای پخش"
           />
 
-          {/* Reset button */}
+          {/* بازآغاز قطعه */}
           <button
             onClick={() => {
               if (audioRef.current) {
@@ -301,30 +266,42 @@ export const AudioLinkPlayer: React.FC<AudioLinkPlayerProps> = ({
               }
             }}
             className="text-[#C4B59D] hover:text-[#FFF5E6] p-1.5 transition"
-            title="شروع مجدد"
+            title="بازآغاز از آغاز نغمه"
           >
             <RotateCcw size={15} />
           </button>
 
-          {/* Direct Link in New Tab */}
-          <a
-            href={audioUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[#A6937C] hover:text-[#E5A836] p-1.5 transition"
-            title="باز کردن لینک مستقیم فایل صوتی"
-          >
-            <ExternalLink size={14} />
-          </a>
+          {/* پیوند مستقیم پرونده شنیداری */}
+          {!resolvedUrl.startsWith('acoustic://') && (
+            <a
+              href={resolvedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#A6937C] hover:text-[#E5A836] p-1.5 transition"
+              title="باز کردن پیوند مستقیم پرونده شنیداری"
+            >
+              <ExternalLink size={14} />
+            </a>
+          )}
         </div>
       </div>
 
-      {/* Progress Track Seekbar */}
-      <div className="mt-2.5 flex items-center gap-2">
+      {/* نمایشگر موجی و طیف‌نگار ۲ بعدی سبک */}
+      <div className="mt-2.5">
+        <AudioWaveformVisualizer
+          isPlaying={isPlaying}
+          height={38}
+          mode="both"
+          accentColor="#E5A836"
+        />
+      </div>
+
+      {/* نوار لغزان پیشرفت نغمه */}
+      <div className="mt-2 flex items-center gap-2">
         <input
           type="range"
           min="0"
-          max={duration || 100}
+          max={duration || 26}
           step="0.1"
           value={currentTime}
           onChange={handleSeek}

@@ -20,6 +20,9 @@ export type PlaybackSoundMode = 'both' | 'metronome_only' | 'percussion_only';
 
 export const RhythmGenerator: React.FC<RhythmGeneratorProps> = ({ onOpenTreatise }) => {
   const [selectedPattern, setSelectedPattern] = useState<RhythmPattern>(RHYTHM_PRESETS[0]);
+  const [selectedAccentFormId, setSelectedAccentFormId] = useState<string | null>(
+    RHYTHM_PRESETS[0].accentForms?.[0]?.id || null
+  );
   const [isPlaying, setIsPlaying] = useState(false);
   const [tempo, setTempo] = useState<number>(RHYTHM_PRESETS[0].tempoDefault);
   const [activeStep, setActiveStep] = useState<number>(-1);
@@ -33,6 +36,13 @@ export const RhythmGenerator: React.FC<RhythmGeneratorProps> = ({ onOpenTreatise
   const currentStepRef = useRef<number>(0);
   const tapTimesRef = useRef<number[]>([]);
 
+  // Active accent form and effective data
+  const activeAccentForm = selectedPattern.accentForms?.find(f => f.id === selectedAccentFormId) || selectedPattern.accentForms?.[0];
+  const effectiveSubdivisions = activeAccentForm ? activeAccentForm.subdivisions : selectedPattern.subdivisions;
+  const effectiveHits = activeAccentForm ? activeAccentForm.hits : selectedPattern.hits;
+  const effectiveCountingText = activeAccentForm ? activeAccentForm.countingText : selectedPattern.countingText;
+  const effectiveMnemonics = activeAccentForm ? activeAccentForm.mnemonicSyllables : selectedPattern.mnemonicSyllables;
+
   // Update volumes
   useEffect(() => {
     audioEngine.setMetronomeVolume(metronomeVolume);
@@ -45,7 +55,14 @@ export const RhythmGenerator: React.FC<RhythmGeneratorProps> = ({ onOpenTreatise
   // Update tempo when pattern changes
   const handleSelectPattern = (pat: RhythmPattern) => {
     setSelectedPattern(pat);
+    setSelectedAccentFormId(pat.accentForms?.[0]?.id || null);
     setTempo(pat.tempoDefault);
+    currentStepRef.current = 0;
+    setActiveStep(-1);
+  };
+
+  const handleSelectAccentForm = (formId: string) => {
+    setSelectedAccentFormId(formId);
     currentStepRef.current = 0;
     setActiveStep(-1);
   };
@@ -61,17 +78,15 @@ export const RhythmGenerator: React.FC<RhythmGeneratorProps> = ({ onOpenTreatise
       return;
     }
 
-    const totalSteps = selectedPattern.hits.length;
-    // Step duration in ms: in 6/8, 7/8 or 2/4, each step represents the subdivision beat
+    const totalSteps = effectiveHits.length;
+    // Step duration in ms: in 6/8, 7/8, 11/8, each step represents the subdivision beat
     const stepDurationMs = (60 / tempo) * 1000 * 0.5;
 
     timerRef.current = window.setInterval(() => {
       const stepIdx = currentStepRef.current % totalSteps;
-      const hit = selectedPattern.hits[stepIdx];
+      const hit = effectiveHits[stepIdx];
 
       if (hit) {
-        const isAccentFirst = stepIdx === 0 || hit.accent === 'strong';
-
         // 1. Play Pure Metronome Click if enabled
         if (soundMode === 'both' || soundMode === 'metronome_only') {
           audioEngine.playMetronomeClick(stepIdx === 0 ? 'high' : 'low', metronomeVolume);
@@ -94,7 +109,7 @@ export const RhythmGenerator: React.FC<RhythmGeneratorProps> = ({ onOpenTreatise
         timerRef.current = null;
       }
     };
-  }, [isPlaying, tempo, selectedPattern, soundMode, metronomeVolume, percussionVolume]);
+  }, [isPlaying, tempo, selectedPattern, selectedAccentFormId, effectiveHits, soundMode, metronomeVolume, percussionVolume]);
 
   const togglePlay = () => {
     audioEngine.initContext();
@@ -128,10 +143,10 @@ export const RhythmGenerator: React.FC<RhythmGeneratorProps> = ({ onOpenTreatise
           <span className="text-3xl">🥁</span>
           <div>
             <h3 className="text-base sm:text-lg font-bold text-[#F5EEDB]">
-              مولد ریتم، مترونوم خالص استودیویی و ضرب‌آهنگ‌های سنتی
+              پدیدآور ریتم، تنبک، دف و ساختارشکنی اوزان لنگ اوراسیا
             </h3>
             <p className="text-xs text-[#C4B59D]">
-              شبیه‌سازی تمبک، دف، توآکای دانوب و کلیک استاندارد DAW (مانند کیوبیس) با چراغ‌های همگام و هجاهای آموزشی
+              شبیه‌سازی تمبک، دف، توآکا و کلیک DAW، همراه با تقطیع آکسان‌ها (مثل ۱۱/۸، ۱۲/۸، ۱۰/۸، ۷/۸، ۵/۸ و ۴/۴)
             </p>
           </div>
         </div>
@@ -280,21 +295,109 @@ export const RhythmGenerator: React.FC<RhythmGeneratorProps> = ({ onOpenTreatise
               <span className="text-[#C4B59D] text-xs">({selectedPattern.description})</span>
             </div>
             <div className="text-xs text-[#E5A836] font-mono font-bold tracking-wide">
-              شمارش و هجاهای آموزشی: <span className="text-[#FFF5E6] bg-[#2A201A] px-2 py-0.5 rounded border border-[#594234]/60">{selectedPattern.countingText}</span>
+              شمارش و هجاهای آموزشی: <span className="text-[#FFF5E6] bg-[#2A201A] px-2 py-0.5 rounded border border-[#594234]/60">{effectiveCountingText}</span>
             </div>
           </div>
           <div className="text-left text-[#A6937C] text-[11px] whitespace-nowrap">
-            تقسیمات ضربی: {selectedPattern.subdivisions.join(' + ')}
+            تقسیمات ضربی: {effectiveSubdivisions.join(' + ')}
+          </div>
+        </div>
+
+        {/* Accent Variation Forms Selector (فرم‌های تغییر آکسان و ساختارشکنی) */}
+        {selectedPattern.accentForms && selectedPattern.accentForms.length > 0 && (
+          <div className="p-3 bg-[#1B1511] rounded-xl border border-[#594234]/50 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-[#E5A836] flex items-center gap-1.5">
+                <span>⚡</span>
+                <span>فرم‌های تغییر آکسان و شکستن ریتم (ساختارشکنی متریک):</span>
+              </span>
+              <span className="text-[10px] text-[#A6937C]">روی فرم دلخواه کلیک کنید</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {selectedPattern.accentForms.map(form => {
+                const isFormActive = activeAccentForm?.id === form.id;
+                return (
+                  <button
+                    key={form.id}
+                    onClick={() => handleSelectAccentForm(form.id)}
+                    className={`p-2.5 rounded-lg border text-right transition-all flex flex-col justify-between space-y-1 ${
+                      isFormActive
+                        ? 'bg-[#2E2018] border-[#E5A836] text-[#FFF5E6] ring-1 ring-[#E5A836]/60 shadow-md'
+                        : 'bg-[#150F0C] border-[#594234]/40 text-[#C4B59D] hover:bg-[#201813]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#F5EEDB]">{form.label}</span>
+                      <span className="text-[10.5px] font-mono px-1.5 py-0.5 rounded bg-[#100D0A] text-[#E5A836] border border-[#594234]/50">
+                        {form.formula}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-[#A6937C] line-clamp-2 leading-relaxed">
+                      {form.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Visual Proportional Accent Breakdown Blocks (جعبه‌های تفکیک بصری آکسان) */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs text-[#E5A836]">
+            <span className="font-bold flex items-center gap-1.5">
+              <span>📐</span>
+              <span>تجسم هندسی بلوک‌های زمانی و تأکیدات:</span>
+            </span>
+            <span className="font-mono text-[#FFF5E6] bg-[#221914] px-2 py-0.5 rounded border border-[#594234]/70 text-[11px]">
+              تقطیع آکسان: {effectiveSubdivisions.join(' + ')}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 w-full h-11 p-1 bg-[#0D0A08] rounded-xl border border-[#594234]/70 overflow-hidden">
+            {(() => {
+              let stepAcc = 0;
+              return effectiveSubdivisions.map((subCount, blkIdx) => {
+                const startStep = stepAcc;
+                const endStep = stepAcc + subCount - 1;
+                stepAcc += subCount;
+                const isBlockActive = activeStep >= startStep && activeStep <= endStep;
+                const isTriple = subCount === 3;
+
+                return (
+                  <div
+                    key={blkIdx}
+                    style={{ flex: subCount }}
+                    className={`h-full rounded-lg transition-all duration-150 flex items-center justify-between px-2.5 text-xs font-bold relative border ${
+                      isBlockActive
+                        ? isTriple
+                          ? 'bg-[#E5A836] text-black border-[#FFF5E6] shadow-lg scale-[1.01]'
+                          : 'bg-[#10B981] text-black border-[#FFF5E6] shadow-lg scale-[1.01]'
+                        : isTriple
+                        ? 'bg-[#8B2635]/40 text-[#F5EEDB] border-[#8B2635]/80 hover:bg-[#8B2635]/60'
+                        : 'bg-[#241A14] text-[#C4B59D] border-[#594234]/60 hover:bg-[#2C211B]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${isBlockActive ? 'bg-black animate-ping' : isTriple ? 'bg-[#E5A836]' : 'bg-[#10B981]'}`} />
+                      <span className="text-[11px] font-bold">بخش {blkIdx + 1}: {subCount} تایی</span>
+                    </div>
+                    <span className="text-[10px] font-mono opacity-80">{isTriple ? 'کشش بلند' : 'کوتاه'}</span>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
 
         {/* Pulse Grid with Glowing LED Lights */}
-        <div className="grid grid-flow-col auto-cols-fr gap-2 sm:gap-3 pt-1 pb-2">
-          {selectedPattern.hits.map((hit, idx) => {
+        <div className="grid grid-flow-col auto-cols-fr gap-2 sm:gap-3 pt-1 pb-2 overflow-x-auto">
+          {effectiveHits.map((hit, idx) => {
             const isStepActive = activeStep === idx;
             const isStrong = hit.accent === 'strong';
             const isMedium = hit.accent === 'medium';
-            const syllable = selectedPattern.mnemonicSyllables[idx] || '';
+            const syllable = effectiveMnemonics[idx] || '';
 
             let soundLabel = 'بک';
             let soundBg = 'border-[#594234]';
@@ -312,7 +415,7 @@ export const RhythmGenerator: React.FC<RhythmGeneratorProps> = ({ onOpenTreatise
             return (
               <div
                 key={idx}
-                className={`rounded-xl border p-2.5 text-center transition-all flex flex-col justify-between items-center h-28 relative ${soundBg} ${
+                className={`rounded-xl border p-2 text-center transition-all flex flex-col justify-between items-center h-28 relative ${soundBg} ${
                   isStepActive
                     ? 'bg-[#E5A836] text-black scale-105 shadow-xl ring-2 ring-[#FFF5E6]'
                     : isStrong

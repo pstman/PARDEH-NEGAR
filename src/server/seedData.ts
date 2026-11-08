@@ -1,4 +1,4 @@
-import { BlogPost } from './types';
+import { BlogPost, PodcastEpisode } from './types';
 
 /**
  * Initial reference articles by Iman Barzjan & EnamiX Studio
@@ -16,8 +16,8 @@ export const SEED_BLOG_POSTS: BlogPost[] = [
     categoryLabelFa: 'آکوستیک و تئوری ردیف',
     tags: ['هرمز فرهت', 'ریزپرده‌ها', 'چهارگاه', 'سه‌گاه', 'انحراف سنت', 'ویولن صبا'],
     coverImageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=80',
-    audioUrl: 'https://actions.google.com/sounds/v1/science/electronic_synth_tone_loop.ogg',
-    audioTitle: 'نمونه صوتی مقایسه دوم خنثی (۱۳۵ سنت) در برابر دوم نیم‌پرده و دوم بزرگ',
+    audioUrl: 'acoustic://chahargah-farhat',
+    audioTitle: 'اجرای آکوستیک چهارگاه و سه‌گاه (سنتور و ویولن - فواصل خنثای فرهت)',
     youtubeUrl: 'https://www.youtube.com/watch?v=k1b8zms9qYk',
     readingTimeMinutes: 7,
     likesCount: 142,
@@ -60,8 +60,8 @@ export const SEED_BLOG_POSTS: BlogPost[] = [
     categoryLabelFa: 'سازشناسی و تاریخ پیوستار',
     tags: ['سنتور', 'تسامبال', 'پیوستار آکوستیک', 'رومانی', 'لوتاری', 'دیمیتری کانتمیر'],
     coverImageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/outdoor_festival_crowd.ogg',
-    audioTitle: 'نوای همزمان سنتور ایرانی و تسامبال کنسرتی رومانی در ریتم ۹/۸ اکساک',
+    audioUrl: 'acoustic://santur-tambal-continuum',
+    audioTitle: 'دونوازی آکوستیک سنتور ایرانی و تسامبال کنسرتی رومانی',
     youtubeUrl: 'https://www.youtube.com/watch?v=kJQP7kiw5Fk',
     readingTimeMinutes: 6,
     likesCount: 118,
@@ -93,8 +93,8 @@ export const SEED_BLOG_POSTS: BlogPost[] = [
     categoryLabelFa: 'مکتب ویولن ایرانی',
     tags: ['ویولن ایرانی', 'ابوالحسن صبا', 'پرویز یاحقی', 'کوک ساز', 'واخوان'],
     coverImageUrl: 'https://images.unsplash.com/photo-1612225330812-01a9c6b355ec?auto=format&fit=crop&w=1200&q=80',
-    audioUrl: 'https://actions.google.com/sounds/v1/foley/paper_turn.ogg',
-    audioTitle: 'طنین واخوان در کوک ر-لا-ر-لا روی پوزیسیون سوم ویولن',
+    audioUrl: 'acoustic://violin-saba-yahaghi',
+    audioTitle: 'نوازندگی ویولن ایرانی در آواز دشتی با طنین واخوان (مکتب صبا و یاحقی)',
     youtubeUrl: 'https://www.youtube.com/watch?v=0hX03w1F9m0',
     readingTimeMinutes: 8,
     likesCount: 165,
@@ -118,3 +118,75 @@ export const SEED_BLOG_POSTS: BlogPost[] = [
     `
   }
 ];
+
+export const SEED_PODCAST_EPISODES: PodcastEpisode[] = [
+  {
+    id: 'pod_iran_plateau_origin',
+    title: 'نغمه‌های کهن فلات ایران: سنتور، نی و مبانی هندسه ردیف',
+    description: 'تحلیل صوتی و پژوهشی ایستگاه مبدأ فلات ایران، با ارتعاشات سنتور استاد حبیب سماعی و نوای نی کسایی، سازگاری واخوان‌ها و تثبیت درجات شور.',
+    audioUrl: 'https://cdn.freesound.org/previews/562/562852_5674468-lq.mp3',
+    durationSeconds: 195,
+    durationFormatted: '۰۳:۱۵',
+    fileSizeMb: 3.8,
+    chapterId: 'ch1',
+    chapterTitle: 'فصل اول: جهان صوتی ایرانی-دانوبی و پیوستار آکوستیک',
+    speaker: 'ایمان برزجان',
+    recordedDate: '۱۵ مهر ۱۴۰۵',
+    isPublished: true,
+    stationRegion: 'iran_plateau',
+    createdAt: '2026-10-06T10:00:00Z',
+    updatedAt: '2026-10-06T10:00:00Z'
+  },
+  {
+    id: 'pod_alans_steppes_hora',
+    title: 'مسیر سکاها و آلان‌ها: هورای باستانی و تبادلات کمانچه قفقاز',
+    description: 'واکاوی ریتم‌های دایره‌ای، طنین آرشه‌های موی دم اسب و گذار سازهای زهی مالشی از استپ‌های شمالی به بالکان.',
+    audioUrl: 'https://cdn.freesound.org/previews/450/450634_5121236-lq.mp3',
+    durationSeconds: 240,
+    durationFormatted: '۰۴:۰۰',
+    fileSizeMb: 4.6,
+    chapterId: 'ch2',
+    chapterTitle: 'فصل دوم: انطباق تطبیقی دستگاه‌ها و گام‌های ماژور/مینور',
+    speaker: 'ایمان برزجان',
+    recordedDate: '۲۲ مهر ۱۴۰۵',
+    isPublished: true,
+    stationRegion: 'alans_steppes',
+    createdAt: '2026-10-13T10:00:00Z',
+    updatedAt: '2026-10-13T10:00:00Z'
+  },
+  {
+    id: 'pod_mesopotamia_kaval',
+    title: 'میان‌راهی بین‌النهرین و آناتولی: کاوال چوپانی و تسامبال زهی',
+    description: 'چگونه فلوت بدون دهنی کاوال و سنتور مسافرتی تسامبال در قهوه‌خانه‌های استانبول و دجله و فرات هویت مشترک پیدا کردند.',
+    audioUrl: 'https://cdn.freesound.org/previews/612/612610_11861866-lq.mp3',
+    durationSeconds: 210,
+    durationFormatted: '۰۳:۳۰',
+    fileSizeMb: 4.1,
+    chapterId: 'ch3',
+    chapterTitle: 'فصل سوم: سیستم فواصل پنج‌گانه هرمز فرهت',
+    speaker: 'ایمان برزجان',
+    recordedDate: '۳۰ مهر ۱۴۰۵',
+    isPublished: true,
+    stationRegion: 'mesopotamia',
+    createdAt: '2026-10-21T10:00:00Z',
+    updatedAt: '2026-10-21T10:00:00Z'
+  },
+  {
+    id: 'pod_danube_lautari',
+    title: 'مقصد دانوب و حوضه کارپات: رقص لنگ لوتاری‌های رومانی',
+    description: 'بررسی رقص‌های لنگ و آکساک ۷/۸ و ۱۱/۸ تاراف‌ها و راماهای حاشیه دانوب و پیوند آکوستیک با اوزان عروضی کهن ایران.',
+    audioUrl: 'https://cdn.freesound.org/previews/518/518305_2402876-lq.mp3',
+    durationSeconds: 285,
+    durationFormatted: '۰۴:۴۵',
+    fileSizeMb: 5.5,
+    chapterId: 'ch4',
+    chapterTitle: 'فصل چهارم: فیزیک صوتی و تشدید هارمونیک‌ها',
+    speaker: 'ایمان برزجان',
+    recordedDate: '۸ آبان ۱۴۰۵',
+    isPublished: true,
+    stationRegion: 'danube_basin',
+    createdAt: '2026-10-29T10:00:00Z',
+    updatedAt: '2026-10-29T10:00:00Z'
+  }
+];
+

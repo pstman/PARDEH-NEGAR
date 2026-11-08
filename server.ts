@@ -13,7 +13,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { handleApiRequest } from './src/server/apiRouter';
-import { SEED_BLOG_POSTS } from './src/server/seedData';
+import { SEED_BLOG_POSTS, SEED_PODCAST_EPISODES } from './src/server/seedData';
 
 dotenv.config();
 
@@ -31,6 +31,7 @@ app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 // Database storage directory & file for local development persistence
 const DATA_DIR = path.resolve(__dirname, 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'blog_posts.json');
+const PODCASTS_DB_FILE = path.resolve(DATA_DIR, 'podcasts.json');
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -63,9 +64,35 @@ function writeDbPosts(posts: any[]): void {
   }
 }
 
+function readDbPodcasts(): any[] {
+  try {
+    if (fs.existsSync(PODCASTS_DB_FILE)) {
+      const data = fs.readFileSync(PODCASTS_DB_FILE, 'utf-8');
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('Error reading PODCASTS_DB_FILE:', err);
+  }
+  writeDbPodcasts(SEED_PODCAST_EPISODES);
+  return SEED_PODCAST_EPISODES;
+}
+
+function writeDbPodcasts(podcasts: any[]): void {
+  try {
+    const tempFile = `${PODCASTS_DB_FILE}.tmp`;
+    fs.writeFileSync(tempFile, JSON.stringify(podcasts, null, 2), 'utf-8');
+    fs.renameSync(tempFile, PODCASTS_DB_FILE);
+  } catch (err) {
+    console.error('Error writing PODCASTS_DB_FILE:', err);
+  }
+}
+
 // Local KV Adapter simulating Cloudflare Workers KV for local Express development
 const localKvAdapter = {
-  async get(key: string, type?: string): Promise<any> {
+  async get(key: string, _type?: string): Promise<any> {
     if (key === 'blog_posts') {
       return readDbPosts();
     }
@@ -73,6 +100,14 @@ const localKvAdapter = {
       const id = key.slice(5);
       const posts = readDbPosts();
       return posts.find((p: any) => p.id === id) || null;
+    }
+    if (key === 'podcasts_list') {
+      return readDbPodcasts();
+    }
+    if (key.startsWith('podcast:')) {
+      const id = key.slice(8);
+      const podcasts = readDbPodcasts();
+      return podcasts.find((p: any) => p.id === id) || null;
     }
     return null;
   },
@@ -85,12 +120,25 @@ const localKvAdapter = {
         console.error('Error parsing posts in local KV put:', err);
       }
     }
+    if (key === 'podcasts_list') {
+      try {
+        const podcasts = JSON.parse(value);
+        writeDbPodcasts(podcasts);
+      } catch (err) {
+        console.error('Error parsing podcasts in local KV put:', err);
+      }
+    }
   },
   async delete(key: string): Promise<void> {
     if (key.startsWith('post:')) {
       const id = key.slice(5);
       const posts = readDbPosts();
       writeDbPosts(posts.filter((p: any) => p.id !== id));
+    }
+    if (key.startsWith('podcast:')) {
+      const id = key.slice(8);
+      const podcasts = readDbPodcasts();
+      writeDbPodcasts(podcasts.filter((p: any) => p.id !== id));
     }
   }
 };
@@ -142,7 +190,11 @@ async function startServer() {
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        watch: null,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

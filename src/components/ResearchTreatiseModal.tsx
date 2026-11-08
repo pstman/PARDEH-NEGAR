@@ -13,14 +13,16 @@
  * ناشر: استودیو اینامیکس (EnamiX) | مؤلف: ایمان برزجان
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   SCHOLARLY_TREATISE_CHAPTERS,
   RESEARCH_PDF_DOCS,
   TreatiseChapter,
   AUTHOR_CREDITS
 } from '../utils/pardeheNegarData';
-import { audioEngine } from '../utils/audioEngine';
+import { fetchPodcasts, PodcastEpisode } from '../utils/podcastData';
+import { AudioWaveformVisualizer } from './AudioWaveformVisualizer';
+import { Volume2, Play, Pause, SkipForward, SkipBack, Music2 } from 'lucide-react';
 
 interface ResearchTreatiseModalProps {
   isOpen: boolean;
@@ -37,30 +39,79 @@ export const ResearchTreatiseModal: React.FC<ResearchTreatiseModalProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'chapters' | 'pdf_downloads' | 'tables'>('chapters');
 
-  // Dedicated Treatise Audio Player State
+  // Dynamic Podcast / Real Media Player State
+  const [podcasts, setPodcasts] = useState<PodcastEpisode[]>([]);
+  const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState<number>(0);
   const [isAudioPlaying, setIsAudioPlaying] = useState<boolean>(false);
-  const [audioVolume, setAudioVolume] = useState<number>(0.7);
-  const [audioProgress, setAudioProgress] = useState<number>(0);
+  const [audioVolume, setAudioVolume] = useState<number>(0.8);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Sync volume with dedicated treatise gain channel
+  // Load dynamic podcasts on mount/open
   useEffect(() => {
-    audioEngine.setTreatiseVolume(audioVolume);
+    if (isOpen) {
+      fetchPodcasts().then(data => {
+        if (data && data.length > 0) {
+          setPodcasts(data);
+        }
+      });
+    }
+  }, [isOpen]);
+
+  const currentPodcast: PodcastEpisode | undefined = podcasts[currentEpisodeIndex] || podcasts[0];
+
+  // Sync volume with audio element
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = audioVolume;
+    }
   }, [audioVolume]);
 
-  // Audio timer simulation for progress bar
-  useEffect(() => {
-    let interval: number | null = null;
+  const toggleTreatiseAudio = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
     if (isAudioPlaying) {
-      interval = window.setInterval(() => {
-        setAudioProgress(prev => (prev >= 100 ? 0 : prev + 0.5));
-      }, 500);
+      audio.pause();
+      setIsAudioPlaying(false);
     } else {
-      if (interval) clearInterval(interval);
+      audio.play().then(() => {
+        setIsAudioPlaying(true);
+      }).catch((err: any) => {
+        console.warn('[ResearchTreatiseModal] Audio play error:', err);
+      });
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isAudioPlaying]);
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const targetTime = Number(e.target.value);
+    setCurrentTime(targetTime);
+    if (audioRef.current) {
+      audioRef.current.currentTime = targetTime;
+    }
+  };
+
+  const handleNextTrack = () => {
+    if (podcasts.length === 0) return;
+    const nextIdx = (currentEpisodeIndex + 1) % podcasts.length;
+    setCurrentEpisodeIndex(nextIdx);
+    setIsAudioPlaying(false);
+  };
+
+  const handlePrevTrack = () => {
+    if (podcasts.length === 0) return;
+    const prevIdx = (currentEpisodeIndex - 1 + podcasts.length) % podcasts.length;
+    setCurrentEpisodeIndex(prevIdx);
+    setIsAudioPlaying(false);
+  };
+
+  const formatSeconds = (sec: number) => {
+    if (!sec || isNaN(sec)) return '۰۰:۰۰';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   if (!isOpen) return null;
 
@@ -72,16 +123,6 @@ export const ResearchTreatiseModal: React.FC<ResearchTreatiseModalProps> = ({
     ch.summary.includes(searchQuery) ||
     ch.fullContent.some(p => p.includes(searchQuery))
   );
-
-  const toggleTreatiseAudio = () => {
-    if (isAudioPlaying) {
-      audioEngine.stopTreatiseAudio();
-      setIsAudioPlaying(false);
-    } else {
-      audioEngine.startTreatiseAudio();
-      setIsAudioPlaying(true);
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-fade-in font-persian" dir="rtl">
@@ -100,7 +141,7 @@ export const ResearchTreatiseModal: React.FC<ResearchTreatiseModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-[#C4B59D]">
-                پژوهش و تألیف: {AUTHOR_CREDITS.author} | استخراج و یکپارچه‌سازی از ۵ رساله مرجع و متون اتنوموزیکولوژی
+                طراح و مؤلف: {AUTHOR_CREDITS.author} ({AUTHOR_CREDITS.authorTitle}) | استخراج و یکپارچه‌سازی از ۵ رساله مرجع و متون اتنوموزیکولوژی
               </p>
             </div>
           </div>
@@ -114,50 +155,114 @@ export const ResearchTreatiseModal: React.FC<ResearchTreatiseModalProps> = ({
           </button>
         </div>
 
-        {/* Dedicated Audio Player Bar (Independent Audio Routing - Does not clash with Metronome) */}
-        <div className="px-4 py-2.5 bg-[#201813] border-b border-[#594234]/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2.5 w-full sm:w-auto">
-            <button
-              onClick={toggleTreatiseAudio}
-              className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 shadow ${
-                isAudioPlaying
-                  ? 'bg-[#EF4444] text-white animate-pulse'
-                  : 'bg-[#D97706] hover:bg-[#E5A836] text-black font-black'
-              }`}
-            >
-              <span>{isAudioPlaying ? '⏸ توقف تحلیل صوتی' : '▶ پخش پادکست و نوای رساله'}</span>
-            </button>
+        {/* Dynamic Real Audio Player with Waveform (No synthetic generation, standard MP3/M4A/WebM) */}
+        {currentPodcast && (
+          <div className="px-4 py-3 bg-[#201813] border-b border-[#594234]/50 flex flex-col lg:flex-row items-center justify-between gap-3 text-xs">
+            {/* Hidden HTML5 Audio Element */}
+            <audio
+              ref={audioRef}
+              src={currentPodcast.audioUrl}
+              onTimeUpdate={() => {
+                if (audioRef.current) {
+                  setCurrentTime(audioRef.current.currentTime);
+                }
+              }}
+              onLoadedMetadata={() => {
+                if (audioRef.current) {
+                  setDuration(audioRef.current.duration || currentPodcast.durationSeconds);
+                }
+              }}
+              onEnded={() => {
+                setIsAudioPlaying(false);
+                handleNextTrack();
+              }}
+            />
 
-            <span className="text-[#C4B59D] text-[11px] truncate">
-              {isAudioPlaying ? 'در حال پخش پس‌زمینه صوتی رساله (مستقل از مترونوم)' : 'هم‌گام با مطالعه به تحلیل و فضای مدال گوش فرا دهید'}
-            </span>
-          </div>
+            {/* Track Info & Controls */}
+            <div className="flex items-center gap-3 w-full lg:w-auto">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={handlePrevTrack}
+                  className="p-1.5 rounded-lg bg-[#2A201A] hover:bg-[#3D2E24] text-[#C4B59D] transition"
+                  title="قطعه پیشین"
+                >
+                  <SkipForward size={14} />
+                </button>
+                <button
+                  onClick={toggleTreatiseAudio}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 shadow ${
+                    isAudioPlaying
+                      ? 'bg-[#EF4444] text-white animate-pulse'
+                      : 'bg-[#D97706] hover:bg-[#E5A836] text-black font-black'
+                  }`}
+                  title={isAudioPlaying ? 'توقف پخش' : 'پخش قطعه'}
+                >
+                  {isAudioPlaying ? <Pause size={14} /> : <Play size={14} />}
+                  <span>{isAudioPlaying ? 'توقف' : 'پخش نوای پژوهشی'}</span>
+                </button>
+                <button
+                  onClick={handleNextTrack}
+                  className="p-1.5 rounded-lg bg-[#2A201A] hover:bg-[#3D2E24] text-[#C4B59D] transition"
+                  title="قطعه پسین"
+                >
+                  <SkipBack size={14} />
+                </button>
+              </div>
 
-          <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
-            {/* Progress bar */}
-            <div className="w-28 sm:w-36 h-2 bg-[#120E0B] rounded-full overflow-hidden border border-[#594234]/50">
-              <div
-                className="h-full bg-gradient-to-r from-[#D97706] to-[#E5A836] transition-all duration-300"
-                style={{ width: `${audioProgress}%` }}
+              <div className="min-w-0">
+                <p className="font-bold text-[#F5EEDB] truncate text-xs flex items-center gap-1.5">
+                  <Music2 size={13} className="text-[#E5A836] shrink-0" />
+                  <span>{currentPodcast.title}</span>
+                </p>
+                <p className="text-[10px] text-[#A6937C] truncate">
+                  گوینده و اجرا: {currentPodcast.speaker} • {currentPodcast.durationFormatted} • {currentPodcast.chapterTitle || 'پیوستار آکوستیک'}
+                </p>
+              </div>
+            </div>
+
+            {/* Waveform Visualizer & Scrub Bar */}
+            <div className="flex items-center gap-3 w-full lg:w-1/3">
+              <AudioWaveformVisualizer
+                isPlaying={isAudioPlaying}
+                audioElement={audioRef.current}
+                mode="waveform"
+                height={32}
+                className="w-full rounded-lg bg-[#140F0C] border border-[#594234]/40 overflow-hidden"
               />
             </div>
 
-            {/* Volume slider */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-[#E5A836]">ولوم:</span>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={audioVolume}
-                onChange={(e) => setAudioVolume(Number(e.target.value))}
-                className="w-16 accent-[#E5A836] cursor-pointer"
-                title="کنترل مستقل صدای رساله"
-              />
+            {/* Progress & Volume */}
+            <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-[#A6937C]">{formatSeconds(currentTime)}</span>
+                <input
+                  type="range"
+                  min="0"
+                  max={duration || 100}
+                  step="0.5"
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="w-24 sm:w-28 accent-[#E5A836] cursor-pointer h-1.5 bg-[#120E0B] rounded-lg"
+                />
+                <span className="text-[10px] font-mono text-[#A6937C]">{formatSeconds(duration)}</span>
+              </div>
+
+              <div className="flex items-center gap-1.5 border-r border-[#594234]/40 pr-3">
+                <Volume2 size={14} className="text-[#E5A836]" />
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={audioVolume}
+                  onChange={(e) => setAudioVolume(Number(e.target.value))}
+                  className="w-14 accent-[#E5A836] cursor-pointer"
+                  title="بلندی صدای پادکست"
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Sub-navigation Tabs: Chapters / PDF Downloads / Matrix Tables */}
         <div className="flex items-center gap-2 px-4 py-2 bg-[#19120E] border-b border-[#594234]/40 overflow-x-auto scrollbar-none text-xs">

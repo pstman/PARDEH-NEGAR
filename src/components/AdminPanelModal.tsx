@@ -2,13 +2,13 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * پنل مدیریت و پیکربندی اختصاصی استودیو اینامیکس
- * با لایه امنیتی کلمه عبور متغیر MODIRIAT_ADMIN بر اساس استانداردهای کلودفلر (Cloudflare) و گوگل
- * ابزارهای مدیریت پست‌های وبلاگ (مارک‌داون، HTML، صوت، تصویر، یوتیوب)
- * و مهندسی پالت و تم رنگی سراسری سایت
+ * دیوان راهبری و سرپرستی سامانه پرده‌نگار • استودیو اینامیکس
+ * با لایه امنیتی گذرواژه MODIRIAT_ADMIN مبتنی بر استانداردهای کلودفلر و گوگل
+ * انحصار کامل بارگذاری پرونده‌ها، ویرایش قطعات ایستگاه‌های پیوستار، و انتشار نوشتارها
+ * نگارش به زبان فارسی پالوده و پاکیزه با اصطلاحات تخصصی خنیاگری و ارگانولوژی
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   Palette, 
@@ -26,7 +26,15 @@ import {
   EyeOff,
   ShieldCheck,
   LogOut,
-  AlertCircle
+  AlertCircle,
+  Music,
+  Compass,
+  Upload,
+  Link as LinkIcon,
+  Volume2,
+  Youtube,
+  Layers,
+  Clock
 } from 'lucide-react';
 import { 
   BlogPost, 
@@ -45,13 +53,37 @@ import {
   getStoredTheme, 
   applyTheme 
 } from '../utils/themeSystem';
+import { 
+  ContinuumStationPiece, 
+  getStoredContinuumPieces, 
+  saveContinuumPieces, 
+  updateContinuumPiece, 
+  resetContinuumPiecesToDefault 
+} from '../utils/continuumPiecesData';
+import { 
+  audioEngine, 
+  InstrumentBankInfo, 
+  SampleInstrumentId, 
+  MIDI_NOTE_LABELS, 
+  TimbreType, 
+  PercussionSound 
+} from '../utils/audioEngine';
 import { AudioLinkPlayer } from './AudioLinkPlayer';
 import { MediaVideoPlayer } from './MediaVideoPlayer';
+import { 
+  PodcastEpisode, 
+  fetchPodcasts, 
+  createPodcastEpisode, 
+  updatePodcastEpisode, 
+  deletePodcastEpisode, 
+  resetPodcasts 
+} from '../utils/podcastData';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPostUpdated?: () => void;
+  onPiecesUpdated?: () => void;
 }
 
 const AUTH_STORAGE_KEY = 'enamix_admin_authenticated_session';
@@ -59,7 +91,8 @@ const AUTH_STORAGE_KEY = 'enamix_admin_authenticated_session';
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   isOpen,
   onClose,
-  onPostUpdated
+  onPostUpdated,
+  onPiecesUpdated
 }) => {
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -82,16 +115,38 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   });
 
-  // Panel State
-  const [activeTab, setActiveTab] = useState<'blog_manager' | 'theme_customizer'>('blog_manager');
+  // Panel State (5 Distinct Admin Tabs)
+  const [activeTab, setActiveTab] = useState<'blog_manager' | 'pieces_manager' | 'podcasts_manager' | 'samples_manager' | 'theme_customizer'>('blog_manager');
   const [posts, setPosts] = useState<BlogPost[]>(getStoredBlogPosts());
+  const [pieces, setPieces] = useState<ContinuumStationPiece[]>(getStoredContinuumPieces());
   const [currentTheme, setCurrentTheme] = useState<ColorThemePreset>(getStoredTheme());
   
+  // Podcasts & Audio State
+  const [podcasts, setPodcasts] = useState<PodcastEpisode[]>([]);
+  const [isEditingPodcast, setIsEditingPodcast] = useState<boolean>(false);
+  const [editingPodcastId, setEditingPodcastId] = useState<string | null>(null);
+  const [podFormTitle, setPodFormTitle] = useState('');
+  const [podFormDesc, setPodFormDesc] = useState('');
+  const [podFormAudioUrl, setPodFormAudioUrl] = useState('');
+  const [podFormDuration, setPodFormDuration] = useState('۰۳:۰۰');
+  const [podFormSpeaker, setPodFormSpeaker] = useState('ایمان برزجان');
+  const [podFormChapter, setPodFormChapter] = useState('ch1');
+  const [podFormRegion, setPodFormRegion] = useState<'iran_plateau' | 'alans_steppes' | 'mesopotamia' | 'danube_basin'>('iran_plateau');
+  const [isPodSubmitting, setIsPodSubmitting] = useState(false);
+
   // Custom Color State
   const [customPrimary, setCustomPrimary] = useState(currentTheme.colors.primary);
   const [customAccent, setCustomAccent] = useState(currentTheme.colors.accent);
 
-  // Sync latest posts from server database when modal opens
+  // Sample Banks State
+  const [sampleBanks, setSampleBanks] = useState<InstrumentBankInfo[]>(() => audioEngine.getAllInstrumentBanks());
+  const [selectedSampleInst, setSelectedSampleInst] = useState<SampleInstrumentId>('violin');
+  const [selectedSampleMidi, setSelectedSampleMidi] = useState<number>(69);
+  const [customSampleUrlInput, setCustomSampleUrlInput] = useState<string>('');
+  const [sampleIsBusy, setSampleIsBusy] = useState<boolean>(false);
+  const sampleFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Sync latest posts, podcasts & pieces from DB/cache when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchRemoteBlogPosts().then(latest => {
@@ -99,10 +154,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           setPosts(latest);
         }
       });
+      fetchPodcasts().then(latest => {
+        if (Array.isArray(latest) && latest.length > 0) {
+          setPodcasts(latest);
+        }
+      });
+      setPieces(getStoredContinuumPieces());
+      setSampleBanks(audioEngine.getAllInstrumentBanks());
+
+      const unsubscribe = audioEngine.subscribe(() => {
+        setSampleBanks(audioEngine.getAllInstrumentBanks());
+      });
+      return () => unsubscribe();
     }
   }, [isOpen]);
 
-  // New/Editing Post Form State
+  // Blog Post Form State
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -118,26 +185,47 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [formTags, setFormTags] = useState('ردیف, ویولن, تئوری');
   const [formReadTime, setFormReadTime] = useState(5);
 
+  // Pieces Manager Form State
+  const [editingPieceId, setEditingPieceId] = useState<string>(pieces[0]?.id || 'piece_station_1_iran');
+  const selectedEditingPiece = pieces.find(p => p.id === editingPieceId) || pieces[0];
+  const [pieceFormTitle, setPieceFormTitle] = useState('');
+  const [pieceFormSystem, setPieceFormSystem] = useState('');
+  const [pieceFormAudioUrl, setPieceFormAudioUrl] = useState('');
+  const [pieceFormYoutubeUrl, setPieceFormYoutubeUrl] = useState('');
+  const [pieceFormDuration, setPieceFormDuration] = useState(26);
+  const [pieceFormSummary, setPieceFormSummary] = useState('');
+  const [pieceFormOrganology, setPieceFormOrganology] = useState('');
+  const [pieceFormHistory, setPieceFormHistory] = useState('');
+  const pieceFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (selectedEditingPiece) {
+      setPieceFormTitle(selectedEditingPiece.titleFa);
+      setPieceFormSystem(selectedEditingPiece.musicalSystemFa);
+      setPieceFormAudioUrl(selectedEditingPiece.audioUrl);
+      setPieceFormYoutubeUrl(selectedEditingPiece.youtubeUrl || '');
+      setPieceFormDuration(selectedEditingPiece.durationSec);
+      setPieceFormSummary(selectedEditingPiece.summaryFa);
+      setPieceFormOrganology(selectedEditingPiece.organologyNotesFa);
+      setPieceFormHistory(selectedEditingPiece.historicalContextFa);
+    }
+  }, [editingPieceId, selectedEditingPiece]);
+
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const showStatus = (msg: string) => {
     setStatusMessage(msg);
-    setTimeout(() => setStatusMessage(null), 3000);
+    setTimeout(() => setStatusMessage(null), 3500);
   };
 
-  /**
-   * Password verification:
-   * Sends the user-entered password to the server endpoint `/api/admin/verify`.
-   * The server validates it strictly against the environment variable `MODIRIAT_ADMIN`.
-   * Zero hardcoded passwords in client code.
-   */
+  // Login handler
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedInput = passwordInput.trim();
     if (!trimmedInput) {
-      setAuthError('لطفاً کلمه عبور مدیریت را وارد فرمایید.');
+      setAuthError('لطفاً گذرواژه راهبری را وارد نمایید.');
       return;
     }
 
@@ -162,17 +250,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         try {
           sessionStorage.setItem(AUTH_STORAGE_KEY, 'true');
           sessionStorage.setItem('enamix_admin_password_token', trimmedInput);
-        } catch {
-          // ignore
-        }
-        setAuthError(null);
+        } catch {}
         setPasswordInput('');
-        showStatus('ورود موفقیت‌آمیز به سامانه مدیریت استودیو اینامیکس.');
+        showStatus('ورود به دیوان راهبری با پیروزی انجام شد.');
       } else {
-        setAuthError(data.message || 'کلمه عبور امنیتی مدیریت نادرست است.');
+        setAuthError(data.message || 'گذرواژه راهبری نادرست است.');
       }
     } catch {
-      setAuthError('عدم امکان برقراری ارتباط با سرور جهت اعتبارسنجی کلمه عبور.');
+      setAuthError('لغزش در برقراری پیوند با سرور.');
     } finally {
       setIsVerifying(false);
     }
@@ -184,43 +269,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     try {
       sessionStorage.removeItem(AUTH_STORAGE_KEY);
       sessionStorage.removeItem('enamix_admin_password_token');
-    } catch {
-      // ignore
-    }
+    } catch {}
     setPasswordInput('');
-    setAuthError(null);
-    showStatus('از جلسه مدیریت خارج شدید.');
+    showStatus('از دیوان راهبری خارج شدید.');
   };
 
-  // Theme handlers
-  const handleSelectPreset = (preset: ColorThemePreset) => {
-    setCurrentTheme(preset);
-    setCustomPrimary(preset.colors.primary);
-    setCustomAccent(preset.colors.accent);
-    applyTheme(preset);
-    showStatus(`تم «${preset.name}» با موفقیت بر کل سایت اعمال شد.`);
-  };
-
-  const handleApplyCustomColors = () => {
-    const updatedTheme: ColorThemePreset = {
-      ...currentTheme,
-      id: 'custom_user_theme',
-      name: 'تم اختصاصی سفارشی',
-      nameEn: 'Custom User Theme',
-      colors: {
-        ...currentTheme.colors,
-        primary: customPrimary,
-        primaryHover: customPrimary,
-        accent: customAccent,
-        accentGlow: customAccent
-      }
-    };
-    setCurrentTheme(updatedTheme);
-    applyTheme(updatedTheme);
-    showStatus('رنگ‌های انتخابی شما با موفقیت ذخیره و اعمال گردید.');
-  };
-
-  // Reset Form
+  // Reset Blog Form
   const resetForm = () => {
     setIsEditing(false);
     setEditingId(null);
@@ -237,8 +291,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setFormReadTime(5);
   };
 
-  // Edit existing post
-  const handleStartEdit = (post: BlogPost) => {
+  const handleEditPost = (post: BlogPost) => {
     setIsEditing(true);
     setEditingId(post.id);
     setFormTitle(post.title);
@@ -254,7 +307,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setFormReadTime(post.readingTimeMinutes);
   };
 
-  // Delete post from server DB and local cache
   const handleDeletePost = (id: string) => {
     deleteRemoteBlogPost(id, adminPassword).catch(() => {});
     const updated = posts.filter(p => p.id !== id);
@@ -262,14 +314,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     saveBlogPosts(updated);
     if (editingId === id) resetForm();
     onPostUpdated?.();
-    showStatus('مقاله با موفقیت از پایگاه داده سرور حذف شد.');
+    showStatus('نوشتار با پیروزی از پایگاه داده زدوده شد.');
   };
 
-  // Save/Submit Post to server DB and local cache
   const handleSavePost = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim()) {
-      showStatus('خطا: عنوان مقاله الزامی است.');
+      showStatus('لغزش: عنوان نوشتار الزامی است.');
       return;
     }
 
@@ -286,12 +337,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       title: formTitle.trim(),
       slug: formTitle.trim().toLowerCase().replace(/\s+/g, '-').slice(0, 40),
       summary: formSummary.trim() || formTitle.trim(),
-      content: formContent.trim() || 'متن پیش‌فرض مقاله...',
+      content: formContent.trim() || 'متن نوشتار...',
       author: formAuthor.trim() || 'ایمان برزجان',
       authorRole: 'پژوهشگر موسیقی و استودیو اینامیکس',
       date: new Date().toLocaleDateString('fa-IR'),
       category: formCategory,
-      categoryLabelFa: categoryFaMap[formCategory] || 'پژوهش موسیقی',
+      categoryLabelFa: categoryFaMap[formCategory] || 'پژوهش خنیاگری',
       tags: formTags.split(',').map(t => t.trim()).filter(Boolean),
       coverImageUrl: formCoverImage.trim() || undefined,
       audioUrl: formAudioUrl.trim() || undefined,
@@ -307,51 +358,206 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const updatedPosts = posts.map(p => p.id === editingId ? newPost : p);
       setPosts(updatedPosts);
       saveBlogPosts(updatedPosts);
-      showStatus('مقاله با موفقیت در پایگاه داده سرور به‌روزرسانی شد.');
+      showStatus('نوشتار با پیروزی به‌روزرسانی شد.');
     } else {
       createRemoteBlogPost(newPost, adminPassword).catch(() => {});
       const updatedPosts = [newPost, ...posts];
       setPosts(updatedPosts);
       saveBlogPosts(updatedPosts);
-      showStatus('مقاله جدید با موفقیت در پایگاه داده سرور منتشر گردید.');
+      showStatus('نوشتار تازه منتشر گردید.');
     }
 
     resetForm();
     onPostUpdated?.();
   };
 
-  // Quick insertion helpers for Markdown/HTML
-  const insertTextToContent = (snippet: string) => {
-    setFormContent(prev => prev + '\n' + snippet);
-  };
+  // Piece Save Handler
+  const handleSavePiece = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pieceFormTitle.trim()) {
+      showStatus('لغزش: عنوان قطعه الزامی است.');
+      return;
+    }
 
-  // Backup & Restore
-  const handleExportJson = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(posts, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `enamix_blog_backup_${Date.now()}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
-  const handleResetDefaults = () => {
-    resetRemoteBlogPosts(adminPassword).then((res) => {
-      if (res.posts) setPosts(res.posts);
-      onPostUpdated?.();
-      showStatus('پایگاه داده سرور به نسخه‌های مرجع اولیه بازنشانی شد.');
-    }).catch(() => {
-      const def = resetBlogPostsToDefault();
-      setPosts(def);
-      onPostUpdated?.();
-      showStatus('تمامی مقالات به نسخه‌های مرجع اولیه بازنشانی شدند.');
+    const updated = updateContinuumPiece(editingPieceId, {
+      titleFa: pieceFormTitle.trim(),
+      musicalSystemFa: pieceFormSystem.trim(),
+      audioUrl: pieceFormAudioUrl.trim(),
+      youtubeUrl: pieceFormYoutubeUrl.trim() || undefined,
+      durationSec: Number(pieceFormDuration) || 26,
+      summaryFa: pieceFormSummary.trim(),
+      organologyNotesFa: pieceFormOrganology.trim(),
+      historicalContextFa: pieceFormHistory.trim()
     });
+
+    setPieces([...updated]);
+    onPiecesUpdated?.();
+    showStatus(`قطعه ایستگاه «${selectedEditingPiece.stationNameFa}» با موفقیت به‌روزرسانی شد.`);
+  };
+
+  const handleResetPieces = () => {
+    const def = resetContinuumPiecesToDefault();
+    setPieces([...def]);
+    onPiecesUpdated?.();
+    showStatus('تمامی قطعات ایستگاه‌ها به نغمه‌های مرجع پیش‌نهاده بازنشانی شدند.');
+  };
+
+  // Podcast Handlers
+  const resetPodcastForm = () => {
+    setIsEditingPodcast(false);
+    setEditingPodcastId(null);
+    setPodFormTitle('');
+    setPodFormDesc('');
+    setPodFormAudioUrl('');
+    setPodFormDuration('۰۳:۰۰');
+    setPodFormSpeaker('ایمان برزجان');
+    setPodFormChapter('ch1');
+    setPodFormRegion('iran_plateau');
+  };
+
+  const handleEditPodcast = (ep: PodcastEpisode) => {
+    setIsEditingPodcast(true);
+    setEditingPodcastId(ep.id);
+    setPodFormTitle(ep.title);
+    setPodFormDesc(ep.description);
+    setPodFormAudioUrl(ep.audioUrl);
+    setPodFormDuration(ep.durationFormatted);
+    setPodFormSpeaker(ep.speaker);
+    setPodFormChapter(ep.chapterId || 'ch1');
+    setPodFormRegion(ep.stationRegion || 'iran_plateau');
+  };
+
+  const handleDeletePodcast = async (id: string) => {
+    try {
+      await deletePodcastEpisode(id, adminPassword);
+      const updated = podcasts.filter(p => p.id !== id);
+      setPodcasts(updated);
+      if (editingPodcastId === id) resetPodcastForm();
+      showStatus('قطعه صوتی با موفقیت حذف گردید.');
+    } catch (err: any) {
+      showStatus(err.message || 'خطا در حذف قطعه صوتی.');
+    }
+  };
+
+  const handleSavePodcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!podFormTitle.trim() || !podFormAudioUrl.trim()) {
+      showStatus('لغزش: عنوان و نشانی صوتی الزامی هستند.');
+      return;
+    }
+
+    setIsPodSubmitting(true);
+    try {
+      if (isEditingPodcast && editingPodcastId) {
+        const updated = await updatePodcastEpisode(editingPodcastId, {
+          title: podFormTitle.trim(),
+          description: podFormDesc.trim(),
+          audioUrl: podFormAudioUrl.trim(),
+          durationFormatted: podFormDuration.trim(),
+          speaker: podFormSpeaker.trim(),
+          chapterId: podFormChapter,
+          stationRegion: podFormRegion,
+        }, adminPassword);
+        setPodcasts(prev => prev.map(p => p.id === editingPodcastId ? updated : p));
+        showStatus('قطعه صوتی با موفقیت ویرایش گردید.');
+      } else {
+        const created = await createPodcastEpisode({
+          title: podFormTitle.trim(),
+          description: podFormDesc.trim(),
+          audioUrl: podFormAudioUrl.trim(),
+          durationFormatted: podFormDuration.trim(),
+          speaker: podFormSpeaker.trim(),
+          chapterId: podFormChapter,
+          stationRegion: podFormRegion,
+        }, adminPassword);
+        setPodcasts(prev => [created, ...prev]);
+        showStatus('قطعه صوتی نو با موفقیت ثبت شد.');
+      }
+      resetPodcastForm();
+    } catch (err: any) {
+      showStatus(err.message || 'خطا در ثبت قطعه صوتی.');
+    } finally {
+      setIsPodSubmitting(false);
+    }
+  };
+
+  const handleResetPodcasts = async () => {
+    try {
+      const seeded = await resetPodcasts(adminPassword);
+      setPodcasts(seeded);
+      showStatus('فهرست قطعات صوتی رساله به حالت اولیه بازنشانی شد.');
+    } catch (err: any) {
+      showStatus(err.message || 'خطا در بازنشانی قطعات صوتی.');
+    }
+  };
+
+  // Sample Bank Handlers
+  const handleApplyDirectSampleUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customSampleUrlInput.trim()) {
+      showStatus('لطفاً پیوند مستقیم پرونده صوتی را وارد فرمایید.');
+      return;
+    }
+    setSampleIsBusy(true);
+    const res = await audioEngine.setCustomSampleUrl(selectedSampleInst, selectedSampleMidi, customSampleUrlInput.trim());
+    setSampleIsBusy(false);
+    if (res.success) {
+      setCustomSampleUrlInput('');
+      showStatus('سمپل تازه با موفقیت بارگذاری و فعال شد.');
+    } else {
+      showStatus(res.error || 'لغزش در بارگذاری پیوند سمپل.');
+    }
+  };
+
+  const handleSampleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSampleIsBusy(true);
+    const res = await audioEngine.uploadCustomSampleFile(selectedSampleInst, selectedSampleMidi, file);
+    setSampleIsBusy(false);
+    if (sampleFileInputRef.current) sampleFileInputRef.current.value = '';
+    if (res.success) {
+      showStatus(`پرونده «${file.name}» با موفقیت در بانک سمپل ذخیره و فعال شد.`);
+    } else {
+      showStatus(res.error || 'لغزش در پردازش پرونده صوتی.');
+    }
+  };
+
+  const handleResetSampleInstrument = async () => {
+    setSampleIsBusy(true);
+    await audioEngine.resetInstrumentSamples(selectedSampleInst);
+    setSampleIsBusy(false);
+    showStatus('سمپل‌های ساز به نمونه‌های استودیویی مرجع بازنشانی شد.');
+  };
+
+  const handleThemeSelect = (preset: ColorThemePreset) => {
+    setCurrentTheme(preset);
+    setCustomPrimary(preset.colors.primary);
+    setCustomAccent(preset.colors.accent);
+    applyTheme(preset);
+    showStatus(`تم «${preset.name}» با موفقیت اعمال گردید.`);
+  };
+
+  const handleApplyCustomColors = () => {
+    const custom: ColorThemePreset = {
+      id: 'custom-admin',
+      name: 'پالت سفارشی مدیر',
+      nameEn: 'Custom Admin Theme',
+      description: 'پالت اختصاصی پیکربندی‌شده از پنل مدیریت',
+      colors: {
+        ...currentTheme.colors,
+        primary: customPrimary,
+        accent: customAccent
+      }
+    };
+    setCurrentTheme(custom);
+    applyTheme(custom);
+    showStatus('رنگ‌های سفارشی بر کل سامانه اعمال شد.');
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md font-persian overflow-y-auto" dir="rtl">
-      {/* SECURITY GATE / LOGIN MODAL IF NOT AUTHENTICATED */}
+      {/* دروازه امنیتی ورود در صورت عدم اهراز هویت */}
       {!isAuthenticated ? (
         <div className="relative w-full max-w-md bg-[#16110E] border-2 border-[#E5A836] rounded-2xl shadow-2xl p-6 text-[#F5EEDB] space-y-5 animate-in fade-in zoom-in-95 duration-200">
           <div className="flex items-center justify-between pb-3 border-b border-[#594234]/60">
@@ -360,77 +566,54 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 <Lock size={18} />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-black text-[#F5EEDB]">
-                  احراز هویت مدیریت استودیو اینامیکس
-                </h3>
-                <span className="text-[10px] text-[#A6937C] block font-mono">
-                  EnamiX Security Gate
-                </span>
+                <h3 className="font-black text-sm text-[#F5EEDB]">دیوان راهبری استودیو اینامیکس</h3>
+                <span className="text-[10px] text-[#A6937C]">دروازه امنیتی دسترسی به تنظیمات</span>
               </div>
             </div>
-
-            <button
-              onClick={onClose}
-              aria-label="بستن پنجره"
-              className="w-8 h-8 rounded-full bg-[#241A14] hover:bg-[#34261D] text-[#C4B59D] hover:text-[#FFF5E6] flex items-center justify-center border border-[#594234] transition"
-            >
-              <X size={16} />
+            <button onClick={onClose} className="text-[#A6937C] hover:text-[#FFF5E6]">
+              <X size={18} />
             </button>
           </div>
 
           <p className="text-xs text-[#C4B59D] leading-relaxed">
-            این بخش منحصراً متعلق به مؤلف و مدیر استودیو (ایمان برزجان) است. جهت ارسال پست جدید، ویرایش مقالات و تغییر تم سراسری، لطفاً کلمه عبور امنیتی را وارد فرمایید:
+            جهت بارگذاری فایل‌های صوتی، ویرایش نغمه‌های ایستگاه‌های پیوستار و انتشار نوشتارها، گذرواژه راهبری (<code className="text-[#E5A836]">MODIRIAT_ADMIN</code>) را وارد نمایید.
           </p>
 
-          {authError && (
-            <div className="p-3 rounded-xl bg-red-950/60 border border-red-500/60 text-red-200 text-xs font-bold flex items-center gap-2">
-              <AlertCircle size={16} className="text-red-400 shrink-0" />
-              <span>{authError}</span>
-            </div>
-          )}
-
           <form onSubmit={handleLoginSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-[#E5A836]">
-                کلمه عبور مدیریت:
-              </label>
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-[#E5A836]">گذرواژه راهبری:</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  required
-                  autoFocus
-                  disabled={isVerifying}
+                  dir="ltr"
                   value={passwordInput}
-                  onChange={(e) => {
-                    setPasswordInput(e.target.value);
-                    if (authError) setAuthError(null);
-                  }}
-                  placeholder="کلمه عبور اختصاصی را وارد نمایید..."
-                  className="w-full bg-[#241A14] border border-[#594234] focus:border-[#E5A836] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#F5EEDB] outline-none font-mono disabled:opacity-50"
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full bg-[#201813] border border-[#594234] rounded-xl px-3.5 py-2.5 text-xs text-[#FFF5E6] font-mono focus:border-[#E5A836] outline-none"
+                  autoFocus
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A6937C] hover:text-[#FFF5E6] transition"
-                  title={showPassword ? 'مخفی کردن' : 'نمایش کلمه عبور'}
+                  className="absolute left-3 top-2.5 text-[#A6937C] hover:text-[#E5A836]"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
-            <div className="p-3 bg-[#120E0B] rounded-xl border border-[#594234]/40 text-[10px] text-[#A6937C] space-y-1 leading-relaxed">
-              <span className="font-bold text-[#E5A836] block">تنظیم متغیر امنیتی در سرور / کلودفلر:</span>
-              <p>
-                کلمه عبور امنیتی مستقیماً در متغیر محیطی <code className="text-[#34D399] font-mono">MODIRIAT_ADMIN</code> در سرور یا کلودفلر تعریف می‌گردد و هیچ مقدار پیش‌فرضی درون کدهای سامانه هاردکد نشده است.
-              </p>
-            </div>
+            {authError && (
+              <div className="p-2.5 rounded-lg bg-[#8B2635]/30 border border-[#8B2635] text-red-200 text-xs flex items-center gap-1.5">
+                <AlertCircle size={14} />
+                <span>{authError}</span>
+              </div>
+            )}
 
-            <div className="flex items-center justify-end gap-2 pt-1">
+            <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-[#241A14] hover:bg-[#34261D] text-[#C4B59D] transition text-xs font-bold border border-[#594234]"
+                className="px-4 py-2 rounded-xl bg-[#241A14] text-[#C4B59D] text-xs font-bold border border-[#594234]"
               >
                 انصراف
               </button>
@@ -440,13 +623,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 className="px-5 py-2 rounded-xl bg-[#D97706] hover:bg-[#E5A836] disabled:opacity-60 text-black font-black transition shadow text-xs flex items-center gap-1.5"
               >
                 <Key size={14} />
-                <span>{isVerifying ? 'در حال بررسی...' : 'تأیید و ورود به پنل'}</span>
+                <span>{isVerifying ? 'در حال بررسی...' : 'تأیید و ورود'}</span>
               </button>
             </div>
           </form>
         </div>
       ) : (
-        /* FULL ADMIN PANEL WHEN AUTHENTICATED */
+        /* دیوان کامل راهبری پس از ورود */
         <div className="relative w-full max-w-5xl bg-[#140F0C] border-2 border-[#E5A836]/70 rounded-2xl shadow-2xl p-4 sm:p-6 text-[#F5EEDB] my-6 max-h-[92vh] flex flex-col animate-in fade-in duration-200">
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-[#594234]/70 shrink-0">
@@ -456,13 +639,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-black text-[#F5EEDB] flex items-center gap-2">
-                  <span>پنل مدیریت و پیکربندی اختصاصی استودیو اینامیکس</span>
+                  <span>دیوان راهبری و سرپرستی سامانه پرده‌نگار</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#10B981]/20 text-[#34D399] border border-[#10B981]/40">
-                    مدیر تأیید شده
+                    راهبر تأییدشده
                   </span>
                 </h2>
                 <p className="text-[11px] text-[#E5A836]">
-                  ابزارهای تولید محتوای وبلاگ (مارک‌داون، صوت، تصویر، ویدیو) و تنظیم پالت رنگی سراسری
+                  انحصار بارگذاری سمپل‌ها، انتشار نوشتارها، ویرایش قطعات ایستگاه‌های پیوستار، و رنگ‌آمیزی سامانه
                 </p>
               </div>
             </div>
@@ -471,23 +654,16 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#2A1F18] hover:bg-red-950/60 text-red-300 border border-[#594234] text-[11px] font-bold transition"
-                title="خروج از حساب مدیریت"
               >
                 <LogOut size={13} />
                 <span>خروج</span>
               </button>
-
-              <button
-                onClick={onClose}
-                aria-label="بستن پنل مدیریت"
-                className="w-8 h-8 rounded-full bg-[#241A14] hover:bg-[#34261D] text-[#C4B59D] hover:text-[#FFF5E6] flex items-center justify-center border border-[#594234] transition"
-              >
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-[#241A14] text-[#C4B59D] hover:text-[#FFF5E6] flex items-center justify-center border border-[#594234]">
                 <X size={18} />
               </button>
             </div>
           </div>
 
-          {/* Status notification toast */}
           {statusMessage && (
             <div className="my-2 p-2.5 rounded-xl bg-[#10B981]/20 border border-[#10B981] text-[#34D399] text-xs font-bold flex items-center gap-2">
               <Check size={16} />
@@ -495,357 +671,195 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             </div>
           )}
 
-          {/* Sub-tab Navigation */}
-          <div className="flex items-center gap-2 mt-3 pb-2 border-b border-[#594234]/40 shrink-0">
+          {/* سربرگ‌های چهارگانه دیوان راهبری */}
+          <div className="flex items-center gap-2 mt-3 pb-2 border-b border-[#594234]/40 shrink-0 overflow-x-auto scrollbar-none">
             <button
               onClick={() => setActiveTab('blog_manager')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
-                activeTab === 'blog_manager'
-                  ? 'bg-[#8B2635] text-[#FFF5E6] border-[#E5A836]'
-                  : 'bg-[#241A14] text-[#C4B59D] border-[#594234]/50 hover:bg-[#2C211B]'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border whitespace-nowrap ${
+                activeTab === 'blog_manager' ? 'bg-[#8B2635] text-[#FFF5E6] border-[#E5A836]' : 'bg-[#241A14] text-[#C4B59D] border-[#594234]/50'
               }`}
             >
               <FileText size={15} />
-              <span>مدیریت پست‌های وبلاگ ({posts.length})</span>
+              <span>نوشتارها و مقالات ({posts.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('pieces_manager')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border whitespace-nowrap ${
+                activeTab === 'pieces_manager' ? 'bg-[#8B2635] text-[#FFF5E6] border-[#E5A836]' : 'bg-[#241A14] text-[#C4B59D] border-[#594234]/50'
+              }`}
+            >
+              <Compass size={15} />
+              <span>قطعات ایستگاه‌های پیوستار (۴ ایستگاه)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('podcasts_manager')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border whitespace-nowrap ${
+                activeTab === 'podcasts_manager' ? 'bg-[#8B2635] text-[#FFF5E6] border-[#E5A836]' : 'bg-[#241A14] text-[#C4B59D] border-[#594234]/50'
+              }`}
+            >
+              <Volume2 size={15} />
+              <span>پادکست‌ها و نغمات رساله ({podcasts.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('samples_manager')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border whitespace-nowrap ${
+                activeTab === 'samples_manager' ? 'bg-[#8B2635] text-[#FFF5E6] border-[#E5A836]' : 'bg-[#241A14] text-[#C4B59D] border-[#594234]/50'
+              }`}
+            >
+              <Music size={15} />
+              <span>بانک سمپل‌های سازها (WAV/MP3)</span>
             </button>
 
             <button
               onClick={() => setActiveTab('theme_customizer')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
-                activeTab === 'theme_customizer'
-                  ? 'bg-[#8B2635] text-[#FFF5E6] border-[#E5A836]'
-                  : 'bg-[#241A14] text-[#C4B59D] border-[#594234]/50 hover:bg-[#2C211B]'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border whitespace-nowrap ${
+                activeTab === 'theme_customizer' ? 'bg-[#8B2635] text-[#FFF5E6] border-[#E5A836]' : 'bg-[#241A14] text-[#C4B59D] border-[#594234]/50'
               }`}
             >
               <Palette size={15} />
-              <span>مهندسی تم رنگی سراسری سایت</span>
+              <span>رنگ‌آمیزی سامانه</span>
             </button>
           </div>
 
-          {/* Scrollable Body Area */}
-          <div className="overflow-y-auto space-y-5 pt-3 pr-1 pl-2 text-xs">
-            {/* TAB 1: BLOG MANAGER */}
+          {/* محتوای درونی سربرگ‌ها */}
+          <div className="flex-1 overflow-y-auto py-3 space-y-4">
+            {/* سربرگ ۱: مدیریت پست‌ها و نوشتارهای وبلاگ */}
             {activeTab === 'blog_manager' && (
-              <div className="space-y-6">
-                {/* Form Card */}
-                <div className="bg-[#1A130F] border border-[#594234] rounded-xl p-4 space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#594234]/40">
-                    <span className="font-bold text-[#E5A836] flex items-center gap-1.5 text-xs">
-                      <PlusCircle size={15} />
-                      {isEditing ? `ویرایش مقاله: ${formTitle}` : 'ارسال پست جدید در وبلاگ'}
+              <div className="space-y-4 text-xs">
+                {/* Form */}
+                <form onSubmit={handleSavePost} className="p-4 bg-[#1E1612] border border-[#594234] rounded-xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-[#594234]/60 pb-2">
+                    <span className="font-bold text-[#E5A836]">
+                      {isEditing ? 'ویرایش نوشتار برگزیده' : 'انتشار نوشتار جدید در وبلاگ'}
                     </span>
                     {isEditing && (
-                      <button
-                        type="button"
-                        onClick={resetForm}
-                        className="text-[11px] text-[#A6937C] hover:text-[#FFF5E6] underline"
-                      >
+                      <button type="button" onClick={resetForm} className="text-[11px] text-[#A6937C] hover:text-[#FFF5E6]">
                         انصراف از ویرایش
                       </button>
                     )}
                   </div>
 
-                  <form onSubmit={handleSavePost} className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] text-[#A6937C] mb-1">عنوان مقاله *</label>
-                        <input
-                          type="text"
-                          required
-                          value={formTitle}
-                          onChange={(e) => setFormTitle(e.target.value)}
-                          placeholder="مثال: آنالیز انحراف سنت‌ها در ردیف صبا..."
-                          className="w-full bg-[#241A14] border border-[#594234] rounded-lg px-3 py-1.5 text-xs text-[#F5EEDB] focus:border-[#E5A836] outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] text-[#A6937C] mb-1">دسته‌بندی موضوعی</label>
-                        <select
-                          value={formCategory}
-                          onChange={(e) => setFormCategory(e.target.value as any)}
-                          className="w-full bg-[#241A14] border border-[#594234] rounded-lg px-3 py-1.5 text-xs text-[#F5EEDB] focus:border-[#E5A836] outline-none"
-                        >
-                          <option value="acoustics">آکوستیک و تئوری ردیف</option>
-                          <option value="organology">سازشناسی و تاریخ پیوستار</option>
-                          <option value="violin_technique">مکتب ویولن ایرانی</option>
-                          <option value="ethnomusicology">اتنوموزیکولوژی</option>
-                          <option value="radif_analysis">آنالیز ردیف</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] text-[#A6937C] mb-1">نام نویسنده</label>
-                        <input
-                          type="text"
-                          value={formAuthor}
-                          onChange={(e) => setFormAuthor(e.target.value)}
-                          className="w-full bg-[#241A14] border border-[#594234] rounded-lg px-3 py-1.5 text-xs text-[#F5EEDB] outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] text-[#A6937C] mb-1">برچسب‌ها (با کاما جدا کنید)</label>
-                        <input
-                          type="text"
-                          value={formTags}
-                          onChange={(e) => setFormTags(e.target.value)}
-                          placeholder="ویولن, شور, فرهت"
-                          className="w-full bg-[#241A14] border border-[#594234] rounded-lg px-3 py-1.5 text-xs text-[#F5EEDB] outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] text-[#A6937C] mb-1">تخمین زمان مطالعه (دقیقه)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="60"
-                          value={formReadTime}
-                          onChange={(e) => setFormReadTime(Number(e.target.value))}
-                          className="w-full bg-[#241A14] border border-[#594234] rounded-lg px-3 py-1.5 text-xs text-[#F5EEDB] outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] text-[#A6937C] mb-1">خلاصه کوتاه مقاله</label>
-                      <textarea
-                        rows={2}
-                        value={formSummary}
-                        onChange={(e) => setFormSummary(e.target.value)}
-                        placeholder="چکیده پژوهش جهت نمایش در کارت وبلاگ..."
-                        className="w-full bg-[#241A14] border border-[#594234] rounded-lg p-2.5 text-xs text-[#F5EEDB] focus:border-[#E5A836] outline-none"
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[#C4B59D] block font-bold">عنوان نوشتار:</label>
+                      <input
+                        type="text"
+                        value={formTitle}
+                        onChange={(e) => setFormTitle(e.target.value)}
+                        placeholder="عنوان پژوهشی..."
+                        className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-3 py-2 text-xs text-[#FFF5E6] focus:border-[#E5A836] outline-none"
                       />
                     </div>
 
-                    {/* Rich Content Area with Fast Snippet Buttons */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[11px] text-[#A6937C]">
-                          متن کامل مقاله (پشتیبانی از Markdown و تگ‌های HTML) *
-                        </label>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => insertTextToContent('### تیتر جدید')}
-                            className="px-2 py-0.5 rounded bg-[#2A1F18] hover:bg-[#3D2E24] text-[#E5A836] text-[10px] border border-[#594234]"
-                          >
-                            + تیتر H3
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => insertTextToContent('> متن نقل‌قول یا نکته کلیدی...')}
-                            className="px-2 py-0.5 rounded bg-[#2A1F18] hover:bg-[#3D2E24] text-[#E5A836] text-[10px] border border-[#594234]"
-                          >
-                            + نقل‌قول
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => insertTextToContent('```\n[جدول یا دیاگرام نت]\n```')}
-                            className="px-2 py-0.5 rounded bg-[#2A1F18] hover:bg-[#3D2E24] text-[#E5A836] text-[10px] border border-[#594234]"
-                          >
-                            + بلوک کد
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => insertTextToContent('<div style="background: rgba(229,168,54,0.15); border-right: 4px solid #E5A836; padding: 10px; border-radius: 8px;">\n  <strong>نکته تخصصی:</strong> توضیحات...\n</div>')}
-                            className="px-2 py-0.5 rounded bg-[#2A1F18] hover:bg-[#3D2E24] text-[#34D399] text-[10px] border border-[#594234]"
-                          >
-                            + کادر رنگی HTML
-                          </button>
-                        </div>
-                      </div>
-
-                      <textarea
-                        rows={6}
-                        required
-                        value={formContent}
-                        onChange={(e) => setFormContent(e.target.value)}
-                        placeholder="متن مقاله را اینجا وارد نمایید. می‌توانید از نشانه‌گذاری مارک‌داون یا تگ‌های HTML استفاده فرمایید..."
-                        className="w-full bg-[#120E0B] border border-[#594234] rounded-lg p-3 text-xs text-[#F5EEDB] font-mono leading-relaxed focus:border-[#E5A836] outline-none"
-                      />
-                    </div>
-
-                    {/* Media Link Attachments (Image, Audio M4A/MP3, Video MP4/YouTube) */}
-                    <div className="p-3 bg-[#120E0B] rounded-xl border border-[#594234]/60 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-[#E5A836] block text-[11px]">
-                          🔗 پیوست‌های چندرسانه‌ای مستقیم (تصاویر، فایل صوتی M4A/MP3، ویدیوی مستقیم MP4 یا یوتیوب):
-                        </span>
-                        <span className="text-[10px] text-[#A6937C]">
-                          بدون نیاز به آپلود، با لینک مستقیم هر سرور یا ابری
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-[10px] text-[#A6937C] mb-1">
-                            آدرس تصویر شاخص (JPG, PNG, WebP)
-                          </label>
-                          <input
-                            type="url"
-                            value={formCoverImage}
-                            onChange={(e) => setFormCoverImage(e.target.value)}
-                            placeholder="https://example.com/image.jpg"
-                            className="w-full bg-[#241A14] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#F5EEDB] outline-none font-mono"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] text-[#A6937C] mb-1">
-                            فایل صوتی مستقیم (M4A / MP3 / OGG / WAV)
-                          </label>
-                          <input
-                            type="url"
-                            value={formAudioUrl}
-                            onChange={(e) => setFormAudioUrl(e.target.value)}
-                            placeholder="https://example.com/audio.m4a"
-                            className="w-full bg-[#241A14] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#F5EEDB] outline-none font-mono"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] text-[#A6937C] mb-1">
-                            ویدیو (لینک مستقیم MP4 / WebM یا یوتیوب)
-                          </label>
-                          <input
-                            type="url"
-                            value={formYoutubeUrl}
-                            onChange={(e) => setFormYoutubeUrl(e.target.value)}
-                            placeholder="https://example.com/video.mp4 یا یوتیوب"
-                            className="w-full bg-[#241A14] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#F5EEDB] outline-none font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Optional Audio Title */}
-                      {formAudioUrl && (
-                        <div>
-                          <label className="block text-[10px] text-[#A6937C] mb-1">
-                            عنوان فایل صوتی پیوست (اختیاری)
-                          </label>
-                          <input
-                            type="text"
-                            value={formAudioTitle}
-                            onChange={(e) => setFormAudioTitle(e.target.value)}
-                            placeholder="مثال: اجرای گوشه شوشتری در کوک ر-لا-ر-لا"
-                            className="w-full bg-[#241A14] border border-[#594234] rounded-lg px-2.5 py-1 text-xs text-[#F5EEDB] outline-none"
-                          />
-                        </div>
-                      )}
-
-                      {/* Live Media Previews for Admin */}
-                      {(formAudioUrl || formYoutubeUrl || formCoverImage) && (
-                        <div className="pt-2 border-t border-[#594234]/40 space-y-2">
-                          <span className="text-[10px] font-bold text-[#34D399] block">
-                            👁️ پیش‌نمایش زنده رسانه‌ها در پلیر قبل از انتشار:
-                          </span>
-
-                          {formAudioUrl && (
-                            <div className="space-y-1">
-                              <span className="text-[9px] text-[#A6937C]">پلیر صوتی زنده:</span>
-                              <AudioLinkPlayer
-                                audioUrl={formAudioUrl}
-                                title={formAudioTitle || formTitle || 'پیش‌نمایش فایل صوتی'}
-                              />
-                            </div>
-                          )}
-
-                          {formYoutubeUrl && (
-                            <div className="space-y-1">
-                              <span className="text-[9px] text-[#A6937C]">پلیر ویدیویی زنده:</span>
-                              <MediaVideoPlayer
-                                videoUrl={formYoutubeUrl}
-                                title={formTitle || 'پیش‌نمایش ویدیو'}
-                                posterUrl={formCoverImage}
-                              />
-                            </div>
-                          )}
-
-                          {formCoverImage && !formYoutubeUrl && (
-                            <div className="w-full max-h-40 rounded-lg overflow-hidden border border-[#594234]/50">
-                              <img
-                                src={formCoverImage}
-                                alt="پیش‌نمایش کاور"
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-2">
-                      {isEditing && (
-                        <button
-                          type="button"
-                          onClick={resetForm}
-                          className="px-4 py-2 rounded-lg bg-[#2A1F18] text-[#C4B59D] hover:bg-[#3D2E24] transition text-xs"
-                        >
-                          انصراف
-                        </button>
-                      )}
-                      <button
-                        type="submit"
-                        className="px-5 py-2 rounded-lg bg-[#D97706] hover:bg-[#E5A836] text-black font-bold transition shadow text-xs flex items-center gap-1.5"
+                    <div className="space-y-1">
+                      <label className="text-[#C4B59D] block font-bold">دسته‌بندی موضوعی:</label>
+                      <select
+                        value={formCategory}
+                        onChange={(e) => setFormCategory(e.target.value as any)}
+                        className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-3 py-2 text-xs text-[#FFF5E6] focus:border-[#E5A836] outline-none"
                       >
-                        <Check size={16} />
-                        <span>{isEditing ? 'ذخیره تغییرات مقاله' : 'انتشار مقاله در وبلاگ'}</span>
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                {/* Existing Posts Table */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-[#F5EEDB] text-xs">فهرست مقالات منتشر شده ({posts.length})</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleExportJson}
-                        className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-[#241A14] hover:bg-[#34261D] text-[#E5A836] border border-[#594234]"
-                      >
-                        <Download size={13} />
-                        <span>خروجی JSON</span>
-                      </button>
-                      <button
-                        onClick={handleResetDefaults}
-                        className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-[#241A14] hover:bg-[#34261D] text-red-400 border border-[#594234]"
-                      >
-                        <RotateCcw size={13} />
-                        <span>بازنشانی پیش‌فرض</span>
-                      </button>
+                        <option value="acoustics">آکوستیک و تئوری ردیف</option>
+                        <option value="ethnomusicology">اتنوموزیکولوژی</option>
+                        <option value="radif_analysis">آنالیز ردیف</option>
+                        <option value="violin_technique">مکتب ویولن ایرانی</option>
+                        <option value="organology">سازشناسی و تاریخ پیوستار</option>
+                      </select>
                     </div>
                   </div>
 
-                  <div className="divide-y divide-[#594234]/40 border border-[#594234]/60 rounded-xl overflow-hidden bg-[#18120E]">
-                    {posts.map((p) => (
-                      <div key={p.id} className="p-3 flex items-center justify-between gap-3 hover:bg-[#201813] transition">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-[#F5EEDB] truncate text-xs">{p.title}</span>
-                            <span className="text-[10px] px-2 py-0.2 rounded bg-[#8B2635] text-white shrink-0">
-                              {p.categoryLabelFa}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-[#A6937C] truncate mt-0.5">{p.summary}</p>
-                        </div>
+                  <div className="space-y-1">
+                    <label className="text-[#C4B59D] block font-bold">چکیده کوتاه نوشتار:</label>
+                    <textarea
+                      rows={2}
+                      value={formSummary}
+                      onChange={(e) => setFormSummary(e.target.value)}
+                      placeholder="خلاصه ۲ خطی..."
+                      className="w-full bg-[#120E0B] border border-[#594234] rounded-lg p-2.5 text-xs text-[#FFF5E6] focus:border-[#E5A836] outline-none"
+                    />
+                  </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="space-y-1">
+                    <label className="text-[#C4B59D] block font-bold">متن کامل نوشتار (پشتیبانی از مارک‌داون و HTML):</label>
+                    <textarea
+                      rows={6}
+                      value={formContent}
+                      onChange={(e) => setFormContent(e.target.value)}
+                      placeholder="### عنوان بخش..."
+                      className="w-full bg-[#120E0B] border border-[#594234] rounded-lg p-2.5 text-xs text-[#FFF5E6] font-mono focus:border-[#E5A836] outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[#C4B59D] block">پیوند مستقیم صوت (.mp3/.m4a):</label>
+                      <input
+                        type="url"
+                        dir="ltr"
+                        value={formAudioUrl}
+                        onChange={(e) => setFormAudioUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#FFF5E6] font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[#C4B59D] block">پیوند ویدیو (یوتیوب یا .mp4):</label>
+                      <input
+                        type="url"
+                        dir="ltr"
+                        value={formYoutubeUrl}
+                        onChange={(e) => setFormYoutubeUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#FFF5E6] font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[#C4B59D] block">پیوند نگاره کاور (تصویر):</label>
+                      <input
+                        type="url"
+                        dir="ltr"
+                        value={formCoverImage}
+                        onChange={(e) => setFormCoverImage(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#FFF5E6] font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-lg bg-[#D97706] hover:bg-[#E5A836] text-black font-black transition shadow"
+                    >
+                      {isEditing ? 'به‌روزرسانی نوشتار' : 'انتشار نوشتار در سرور'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* List of Current Posts */}
+                <div className="space-y-2">
+                  <div className="font-bold text-[#E5A836] px-1">فهرست نوشتارهای منتشرشده ({posts.length}):</div>
+                  <div className="space-y-1.5">
+                    {posts.map(p => (
+                      <div key={p.id} className="p-3 bg-[#18120E] border border-[#594234]/60 rounded-xl flex items-center justify-between gap-3">
+                        <div>
+                          <div className="font-bold text-[#F5EEDB]">{p.title}</div>
+                          <div className="text-[10px] text-[#A6937C] mt-0.5">{p.date} • {p.categoryLabelFa}</div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => handleStartEdit(p)}
-                            className="p-1.5 rounded-lg bg-[#2A1F18] hover:bg-[#3D2E24] text-[#E5A836] border border-[#594234] transition"
-                            title="ویرایش مقاله"
+                            onClick={() => handleEditPost(p)}
+                            className="p-1.5 rounded bg-[#241A14] hover:bg-[#34261D] text-[#E5A836]"
+                            title="ویرایش"
                           >
                             <Edit3 size={14} />
                           </button>
                           <button
                             onClick={() => handleDeletePost(p.id)}
-                            className="p-1.5 rounded-lg bg-[#2A1F18] hover:bg-red-900/60 text-red-400 border border-[#594234] transition"
-                            title="حذف مقاله"
+                            className="p-1.5 rounded bg-[#241A14] hover:bg-red-950 text-red-400"
+                            title="حذف"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -857,93 +871,534 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               </div>
             )}
 
-            {/* TAB 2: GLOBAL THEME CUSTOMIZER */}
-            {activeTab === 'theme_customizer' && (
-              <div className="space-y-6">
-                <div className="bg-[#1A130F] border border-[#594234] rounded-xl p-4 space-y-4">
-                  <span className="font-bold text-[#E5A836] flex items-center gap-1.5 text-xs">
-                    <Palette size={16} />
-                    انتخاب پالت‌های رنگی تاریخی و استودیویی از پیش‌طراحی‌شده:
-                  </span>
+            {/* سربرگ ۲: مدیریت قطعات و نغمه‌های ایستگاه‌های پیوستار */}
+            {activeTab === 'pieces_manager' && (
+              <div className="space-y-4 text-xs">
+                <div className="bg-[#1E1612] border border-[#594234] rounded-xl p-4 space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#594234]/60 pb-2">
+                    <div>
+                      <h4 className="font-black text-sm text-[#E5A836]">
+                        مدیریت نغمه‌های ایستگاه‌های پیوستار آکوستیک (بازه ۲۰ تا ۳۰ ثانیه)
+                      </h4>
+                      <p className="text-[11px] text-[#A6937C] mt-0.5">
+                        امکان جایگزینی لینک مستقیم پرونده‌های صوتی (.mp3 / .m4a / .webm) و پیوند ویدیویی یوتیوب برای هر ایستگاه
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleResetPieces}
+                      className="px-2.5 py-1 rounded bg-[#241A14] hover:bg-[#34261D] text-[#C4B59D] border border-[#594234] text-[11px]"
+                    >
+                      بازنشانی به پیش‌فرض
+                    </button>
+                  </div>
 
+                  {/* Station Selector Buttons */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {pieces.map(pc => (
+                      <button
+                        key={pc.id}
+                        type="button"
+                        onClick={() => setEditingPieceId(pc.id)}
+                        className={`p-2.5 rounded-lg border text-right transition ${
+                          pc.id === editingPieceId
+                            ? 'bg-[#8B2635] text-white border-[#E5A836] font-bold shadow'
+                            : 'bg-[#140F0C] text-[#C4B59D] border-[#594234]'
+                        }`}
+                      >
+                        <div className="text-[10px] text-[#E5A836]">ایستگاه {pc.stationNumber}</div>
+                        <div className="text-xs truncate">{pc.stationNameFa.split(':')[1]?.trim() || pc.stationNameFa}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Form for selected piece */}
+                  <form onSubmit={handleSavePiece} className="space-y-3 pt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">عنوان قطعه نغمه:</label>
+                        <input
+                          type="text"
+                          value={pieceFormTitle}
+                          onChange={(e) => setPieceFormTitle(e.target.value)}
+                          className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-3 py-2 text-xs text-[#FFF5E6]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">دستگاه، نغمه یا مایه:</label>
+                        <input
+                          type="text"
+                          value={pieceFormSystem}
+                          onChange={(e) => setPieceFormSystem(e.target.value)}
+                          className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-3 py-2 text-xs text-[#FFF5E6]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">پیوند صوتی مستقیم (.mp3/.m4a):</label>
+                        <input
+                          type="url"
+                          dir="ltr"
+                          value={pieceFormAudioUrl}
+                          onChange={(e) => setPieceFormAudioUrl(e.target.value)}
+                          className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-3 py-2 text-xs text-[#FFF5E6] font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">پیوند اجرای تصویری (یوتیوب):</label>
+                        <input
+                          type="url"
+                          dir="ltr"
+                          value={pieceFormYoutubeUrl}
+                          onChange={(e) => setPieceFormYoutubeUrl(e.target.value)}
+                          placeholder="https://www.youtube.com/watch?v=..."
+                          className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-3 py-2 text-xs text-[#FFF5E6] font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">زمان شنیداری (ثانیه):</label>
+                        <input
+                          type="number"
+                          min={10}
+                          max={90}
+                          value={pieceFormDuration}
+                          onChange={(e) => setPieceFormDuration(Number(e.target.value))}
+                          className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-3 py-2 text-xs text-[#FFF5E6]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[#C4B59D] block font-bold">گزارش سازشناسی (ارگانولوژی):</label>
+                      <textarea
+                        rows={2}
+                        value={pieceFormOrganology}
+                        onChange={(e) => setPieceFormOrganology(e.target.value)}
+                        className="w-full bg-[#120E0B] border border-[#594234] rounded-lg p-2.5 text-xs text-[#FFF5E6]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[#C4B59D] block font-bold">پیشینه کهن و جایگاه تاریخی نغمه:</label>
+                      <textarea
+                        rows={2}
+                        value={pieceFormHistory}
+                        onChange={(e) => setPieceFormHistory(e.target.value)}
+                        className="w-full bg-[#120E0B] border border-[#594234] rounded-lg p-2.5 text-xs text-[#FFF5E6]"
+                      />
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="submit"
+                        className="px-5 py-2 rounded-lg bg-[#D97706] hover:bg-[#E5A836] text-black font-black transition shadow"
+                      >
+                        ذخیره تنظیمات قطعه ایستگاه {selectedEditingPiece.stationNumber}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* سربرگ ۳: مدیریت پادکست‌ها و نغمات رساله (Dynamic Audio & Podcast Management) */}
+            {activeTab === 'podcasts_manager' && (
+              <div className="space-y-4 text-xs">
+                <div className="bg-[#1E1612] border border-[#594234] rounded-xl p-4 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#594234]/60 pb-3">
+                    <div>
+                      <h4 className="font-black text-sm text-[#E5A836] flex items-center gap-2">
+                        <Volume2 size={16} />
+                        <span>مدیریت پادکست‌ها، نغمات رساله و فایل‌های صوتی پیوستار</span>
+                      </h4>
+                      <p className="text-[11px] text-[#A6937C] mt-0.5">
+                        بارگذاری و تنظیم پیوندهای مستقیم صوتی (.mp3 / .m4a / .webm) - بدون هرگونه تولید مصنوعی AI
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleResetPodcasts}
+                      className="px-2.5 py-1 rounded bg-[#241A14] hover:bg-[#34261D] text-[#C4B59D] border border-[#594234] text-[11px] self-start sm:self-center"
+                    >
+                      بازنشانی به قطعات پیش‌فرض
+                    </button>
+                  </div>
+
+                  {/* Add / Edit Form */}
+                  <form onSubmit={handleSavePodcast} className="bg-[#140F0C] border border-[#594234]/60 rounded-xl p-3.5 space-y-3">
+                    <div className="font-bold text-[#E5A836] flex items-center justify-between">
+                      <span>{isEditingPodcast ? 'ویرایش قطعه صوتی' : 'افزودن قطعه صوتی یا پادکست نو'}</span>
+                      {isEditingPodcast && (
+                        <button
+                          type="button"
+                          onClick={resetPodcastForm}
+                          className="text-[10px] text-[#A6937C] hover:text-white"
+                        >
+                          انصراف از ویرایش
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">عنوان قطعه / اپیزود پادکست:</label>
+                        <input
+                          type="text"
+                          value={podFormTitle}
+                          onChange={(e) => setPodFormTitle(e.target.value)}
+                          placeholder="مثلاً: نغمه‌های کهن فلات ایران: سنتور و نی"
+                          className="w-full bg-[#1C1510] border border-[#594234] rounded-lg px-3 py-1.5 text-xs text-[#FFF5E6]"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">نشانی مستقیم فایل صوتی (.mp3 / .m4a / .webm):</label>
+                        <input
+                          type="url"
+                          dir="ltr"
+                          value={podFormAudioUrl}
+                          onChange={(e) => setPodFormAudioUrl(e.target.value)}
+                          placeholder="https://domain.com/audio/sample.mp3"
+                          className="w-full bg-[#1C1510] border border-[#594234] rounded-lg px-3 py-1.5 text-xs text-[#FFF5E6] font-mono"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">گوینده یا نوازنده:</label>
+                        <input
+                          type="text"
+                          value={podFormSpeaker}
+                          onChange={(e) => setPodFormSpeaker(e.target.value)}
+                          placeholder="ایمان برزجان"
+                          className="w-full bg-[#1C1510] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#FFF5E6]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">مدت زمان (فارسی):</label>
+                        <input
+                          type="text"
+                          value={podFormDuration}
+                          onChange={(e) => setPodFormDuration(e.target.value)}
+                          placeholder="۰۳:۱۵"
+                          className="w-full bg-[#1C1510] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#FFF5E6]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">فصل مرتبط رساله:</label>
+                        <select
+                          value={podFormChapter}
+                          onChange={(e) => setPodFormChapter(e.target.value)}
+                          className="w-full bg-[#1C1510] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#FFF5E6]"
+                        >
+                          <option value="ch1">فصل ۱: جهان صوتی ایرانی-دانوبی</option>
+                          <option value="ch2">فصل ۲: انطباق تطبیقی دستگاه‌ها</option>
+                          <option value="ch3">فصل ۳: سیستم فواصل پنج‌گانه هرمز فرهت</option>
+                          <option value="ch4">فصل ۴: فیزیک صوتی و هارمونیک‌ها</option>
+                          <option value="ch5">فصل ۵: گام‌های مینور در رپرتوار ویولن</option>
+                          <option value="ch6">فصل ۶: ارگانولوژی تطبیقی سنتور و تسامبال</option>
+                          <option value="ch7">فصل ۷: اوزان لنگ آکساک بالکان</option>
+                          <option value="ch8">فصل ۸: اسطرلاب و کیهان‌شناسی موسیقی</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[#C4B59D] block font-bold">ایستگاه پیوستار:</label>
+                        <select
+                          value={podFormRegion}
+                          onChange={(e) => setPodFormRegion(e.target.value as any)}
+                          className="w-full bg-[#1C1510] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#FFF5E6]"
+                        >
+                          <option value="iran_plateau">ایستگاه ۱: مبدأ فلات کهن ایران</option>
+                          <option value="alans_steppes">ایستگاه ۲: گذرگاه سکاها و آلان‌ها</option>
+                          <option value="mesopotamia">ایستگاه ۳: میان‌راهی بین‌النهرین و آناتولی</option>
+                          <option value="danube_basin">ایستگاه ۴: مقصد دانوب و کارپات</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[#C4B59D] block font-bold">توضیحات و شرح علمی قطعه:</label>
+                      <textarea
+                        rows={2}
+                        value={podFormDesc}
+                        onChange={(e) => setPodFormDesc(e.target.value)}
+                        placeholder="تحلیل موسیقی‌شناختی، مشخصات ضبط و سازهای نواخته‌شده در این قطعه..."
+                        className="w-full bg-[#1C1510] border border-[#594234] rounded-lg px-3 py-1.5 text-xs text-[#FFF5E6]"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      {isEditingPodcast && (
+                        <button
+                          type="button"
+                          onClick={resetPodcastForm}
+                          className="px-3 py-1.5 rounded-lg bg-[#241A14] hover:bg-[#34261D] text-[#C4B59D] font-bold"
+                        >
+                          انصراف
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={isPodSubmitting}
+                        className="px-4 py-1.5 rounded-lg bg-[#D97706] hover:bg-[#E5A836] text-black font-black transition shadow"
+                      >
+                        {isPodSubmitting ? 'در حال ثبت...' : isEditingPodcast ? 'بروزرسانی قطعه صوتی' : 'ثبت قطعه در پایگاه داده'}
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* List of existing podcasts */}
+                  <div className="space-y-2.5">
+                    <span className="font-bold text-[#C4B59D] block">
+                      فهرست قطعات صوتی و پادکست‌های ثبت‌شده در رساله ({podcasts.length} قطعه):
+                    </span>
+
+                    <div className="space-y-2">
+                      {podcasts.map((ep) => (
+                        <div
+                          key={ep.id}
+                          className="p-3 rounded-xl bg-[#140F0C] border border-[#594234]/70 flex flex-col md:flex-row md:items-center justify-between gap-3"
+                        >
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-[#F5EEDB] text-xs">{ep.title}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#2A1F18] text-[#E5A836] border border-[#594234]">
+                                {ep.durationFormatted}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#8B2635] text-white">
+                                {ep.speaker}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#A6937C] truncate max-w-xl">
+                              {ep.description}
+                            </p>
+                            <div className="max-w-md pt-1">
+                              <AudioLinkPlayer
+                                audioUrl={ep.audioUrl}
+                                title={ep.title}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
+                            <button
+                              onClick={() => handleEditPodcast(ep)}
+                              className="p-1.5 rounded bg-[#241A14] hover:bg-[#34261D] text-[#E5A836] border border-[#594234]"
+                              title="ویرایش قطعه"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePodcast(ep.id)}
+                              className="p-1.5 rounded bg-[#241A14] hover:bg-red-950/70 text-red-300 border border-[#594234]"
+                              title="حذف قطعه"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* سربرگ ۴: مدیریت بانک سمپل‌های واقعی سازها (WAV/MP3) */}
+            {activeTab === 'samples_manager' && (
+              <div className="space-y-4 text-xs">
+                <div className="bg-[#1E1612] border border-[#594234] rounded-xl p-4 space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#594234]/60 pb-2">
+                    <div>
+                      <h4 className="font-black text-sm text-[#E5A836]">
+                        بانک سمپل‌های سازها (WAV / MP3 Sample Bank)
+                      </h4>
+                      <p className="text-[11px] text-[#A6937C] mt-0.5">
+                        بارگذاری فایل‌های استودیویی واقعی سازها یا تنظیم پیوند مستقیم جهت ارتقای صدای زنده سازها
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleResetSampleInstrument}
+                      disabled={sampleIsBusy}
+                      className="px-2.5 py-1 rounded bg-[#241A14] hover:bg-[#34261D] text-[#C4B59D] border border-[#594234] text-[11px]"
+                    >
+                      بازنشانی سمپل این ساز
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Instrument Selector */}
+                    <div className="space-y-2">
+                      <label className="font-bold text-[#E5A836] block">ساز مورد نظر:</label>
+                      <select
+                        value={selectedSampleInst}
+                        onChange={(e) => {
+                          const inst = e.target.value as SampleInstrumentId;
+                          setSelectedSampleInst(inst);
+                          const bank = sampleBanks.find(b => b.id === inst);
+                          if (bank) setSelectedSampleMidi(bank.defaultRootMidi);
+                        }}
+                        className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-3 py-2 text-xs text-[#FFF5E6]"
+                      >
+                        {sampleBanks.map(b => (
+                          <option key={b.id} value={b.id}>
+                            {b.nameFa} ({b.nameEn})
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="space-y-1 pt-1">
+                        <label className="font-bold text-[#C4B59D] block">نوت پایه سمپل (Root MIDI Pitch):</label>
+                        <select
+                          value={selectedSampleMidi}
+                          onChange={(e) => setSelectedSampleMidi(Number(e.target.value))}
+                          className="w-full bg-[#120E0B] border border-[#594234] rounded-lg px-3 py-2 text-xs text-[#FFF5E6]"
+                        >
+                          {Object.entries(MIDI_NOTE_LABELS).map(([m, lbl]) => (
+                            <option key={m} value={m}>{lbl}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Audition Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          audioEngine.initContext();
+                          if (selectedSampleInst.startsWith('tombak') || selectedSampleInst === 'daf' || selectedSampleInst === 'clapper') {
+                            audioEngine.playPercussion(selectedSampleInst as PercussionSound, 0.95);
+                          } else {
+                            audioEngine.playNote(selectedSampleMidi, 0, selectedSampleInst as TimbreType, 'glissando', 1.8);
+                          }
+                        }}
+                        className="w-full py-2 bg-[#2A1F18] hover:bg-[#34261D] text-[#E5A836] border border-[#594234] rounded-lg font-bold flex items-center justify-center gap-1.5 transition"
+                      >
+                        <Volume2 size={15} />
+                        <span>تست شنیداری سمپل فعال این نوت</span>
+                      </button>
+                    </div>
+
+                    {/* Upload & Link Box */}
+                    <div className="space-y-3 bg-[#140F0C] p-3 rounded-xl border border-[#594234]/50">
+                      {/* Upload */}
+                      <div className="space-y-1.5">
+                        <div className="font-bold text-[#E5A836] flex items-center gap-1">
+                          <Upload size={14} />
+                          <span>روش ۱: آپلود فایل سمپل (.wav / .mp3)</span>
+                        </div>
+                        <input
+                          ref={sampleFileInputRef}
+                          type="file"
+                          accept=".wav,.mp3,.m4a,audio/*"
+                          onChange={handleSampleFileUpload}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => sampleFileInputRef.current?.click()}
+                          disabled={sampleIsBusy}
+                          className="w-full py-2 bg-[#8B2635] hover:bg-[#A62F41] text-white rounded-lg font-bold flex items-center justify-center gap-1.5 transition"
+                        >
+                          <Upload size={14} />
+                          <span>انتخاب فایل از سیستم</span>
+                        </button>
+                      </div>
+
+                      {/* Direct URL */}
+                      <form onSubmit={handleApplyDirectSampleUrl} className="space-y-1.5 pt-2 border-t border-[#594234]/40">
+                        <div className="font-bold text-[#38BDF8] flex items-center gap-1">
+                          <LinkIcon size={14} />
+                          <span>روش ۲: ثبت پیوند مستقیم فایل صوتی</span>
+                        </div>
+                        <input
+                          type="url"
+                          dir="ltr"
+                          value={customSampleUrlInput}
+                          onChange={(e) => setCustomSampleUrlInput(e.target.value)}
+                          placeholder="https://example.com/sample.wav"
+                          className="w-full bg-[#1C1510] border border-[#594234] rounded-lg px-2.5 py-1.5 text-xs text-[#FFF5E6] font-mono"
+                        />
+                        <button
+                          type="submit"
+                          disabled={sampleIsBusy}
+                          className="w-full py-1.5 bg-[#0284C7] hover:bg-[#0369A1] text-white rounded-lg font-bold flex items-center justify-center gap-1.5 transition"
+                        >
+                          <Check size={14} />
+                          <span>ثبت پیوند</span>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* سربرگ ۴: رنگ‌آمیزی و پیرایه سامانه */}
+            {activeTab === 'theme_customizer' && (
+              <div className="space-y-4 text-xs">
+                <div className="bg-[#1E1612] border border-[#594234] rounded-xl p-4 space-y-3">
+                  <span className="font-bold text-[#E5A836] block">
+                    پالت‌های رنگی کهن و اصیل ایرانی:
+                  </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {THEME_PRESETS.map((preset) => {
                       const isSelected = currentTheme.id === preset.id;
                       return (
                         <div
                           key={preset.id}
-                          onClick={() => handleSelectPreset(preset)}
-                          className={`p-3.5 rounded-xl border cursor-pointer transition flex flex-col justify-between gap-3 ${
-                            isSelected
-                              ? 'bg-[#2A1F18] border-[#E5A836] ring-2 ring-[#E5A836]/40 shadow-xl'
-                              : 'bg-[#18120E] border-[#594234]/60 hover:border-[#A6937C]'
+                          onClick={() => handleThemeSelect(preset)}
+                          className={`p-3 rounded-xl border cursor-pointer transition ${
+                            isSelected ? 'bg-[#2A1F18] border-[#E5A836] ring-1 ring-[#E5A836]' : 'bg-[#140F0C] border-[#594234]'
                           }`}
                         >
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-xs text-[#FFF5E6]">{preset.name}</span>
-                              {isSelected && <Check size={16} className="text-[#E5A836]" />}
-                            </div>
-                            <span className="text-[10px] text-[#A6937C] block font-mono">{preset.nameEn}</span>
-                            <p className="text-[11px] text-[#C4B59D] leading-relaxed pt-1">{preset.description}</p>
+                          <div className="font-bold text-[#FFF5E6] flex items-center justify-between">
+                            <span>{preset.name}</span>
+                            {isSelected && <Check size={14} className="text-[#E5A836]" />}
                           </div>
-
-                          {/* Palette Color Swatches Preview */}
-                          <div className="flex items-center gap-1.5 pt-2 border-t border-[#594234]/40">
-                            <span className="w-5 h-5 rounded-full border border-black/40" style={{ background: preset.colors.primary }} title="رنگ شاخص" />
-                            <span className="w-5 h-5 rounded-full border border-black/40" style={{ background: preset.colors.accent }} title="رنگ ثانویه / طلایی" />
-                            <span className="w-5 h-5 rounded-full border border-black/40" style={{ background: preset.colors.bgDark }} title="پس‌زمینه هدر" />
-                            <span className="w-5 h-5 rounded-full border border-black/40" style={{ background: preset.colors.border }} title="خطوط حاشیه" />
-                          </div>
+                          <p className="text-[11px] text-[#C4B59D] mt-1">{preset.description}</p>
                         </div>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Custom Color Selector */}
-                <div className="bg-[#1A130F] border border-[#594234] rounded-xl p-4 space-y-3">
-                  <span className="font-bold text-[#E5A836] block text-xs">
-                    🎨 شخصی‌سازی دقیق کدهای رنگی پالت (Custom Color Picker):
-                  </span>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 p-3 bg-[#120E0B] rounded-xl border border-[#594234]/60">
+                <div className="bg-[#1E1612] border border-[#594234] rounded-xl p-4 space-y-3">
+                  <span className="font-bold text-[#E5A836] block">رنگ‌های اختصاصی مدیر:</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[#C4B59D] block mb-1">رنگ شاخص اصلی:</label>
                       <input
                         type="color"
                         value={customPrimary}
                         onChange={(e) => setCustomPrimary(e.target.value)}
-                        className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0"
+                        className="w-10 h-10 rounded cursor-pointer bg-transparent border-0"
                       />
-                      <div>
-                        <span className="text-xs font-bold text-[#FFF5E6] block">رنگ اصلی (Primary)</span>
-                        <span className="font-mono text-[11px] text-[#A6937C]">{customPrimary}</span>
-                      </div>
                     </div>
-
-                    <div className="flex items-center gap-3 p-3 bg-[#120E0B] rounded-xl border border-[#594234]/60">
+                    <div>
+                      <label className="text-[#C4B59D] block mb-1">رنگ ثانویه کهربایی:</label>
                       <input
                         type="color"
                         value={customAccent}
                         onChange={(e) => setCustomAccent(e.target.value)}
-                        className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0"
+                        className="w-10 h-10 rounded cursor-pointer bg-transparent border-0"
                       />
-                      <div>
-                        <span className="text-xs font-bold text-[#FFF5E6] block">رنگ ثانویه و نورپردازی (Accent Gold)</span>
-                        <span className="font-mono text-[11px] text-[#A6937C]">{customAccent}</span>
-                      </div>
                     </div>
                   </div>
-
-                  <div className="flex justify-end pt-2">
-                    <button
-                      onClick={handleApplyCustomColors}
-                      className="px-5 py-2 rounded-lg bg-[#D97706] hover:bg-[#E5A836] text-black font-bold transition shadow text-xs flex items-center gap-1.5"
-                    >
-                      <Sparkles size={15} />
-                      <span>اعمال رنگ‌های سفارشی بر کل سایت</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={handleApplyCustomColors}
+                    className="px-4 py-2 rounded-lg bg-[#D97706] hover:bg-[#E5A836] text-black font-bold transition shadow"
+                  >
+                    اعمال رنگ‌های اختصاصی
+                  </button>
                 </div>
               </div>
             )}
@@ -952,13 +1407,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           {/* Footer */}
           <div className="pt-3 border-t border-[#594234]/70 flex items-center justify-between shrink-0 text-xs">
             <span className="text-[11px] text-[#A6937C]">
-              جلسه فعال مدیریت استودیو اینامیکس • ارتباط امن با پایگاه داده
+              نشست فعال دیوان راهبری استودیو اینامیکس • پیوند استوار با پایگاه داده
             </span>
             <button
               onClick={onClose}
-              className="px-4 py-1.5 rounded-lg bg-[#2A1F18] hover:bg-[#3D2E24] text-[#E5A836] border border-[#594234] transition text-xs font-bold"
+              className="px-4 py-1.5 rounded-lg bg-[#2A1F18] hover:bg-[#3D2E24] text-[#E5A836] border border-[#594234] text-xs font-bold"
             >
-              بستن پنل مدیریت
+              بستن دیوان راهبری
             </button>
           </div>
         </div>

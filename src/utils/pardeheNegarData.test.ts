@@ -39,6 +39,26 @@ test('12 Persian Dastgahs and Avazes are correctly defined with 4-string violin 
   }
 });
 
+test('Dastgah scale degrees ascend monotonically from tonic with correct octave frequency', () => {
+  const shor = PERSIAN_DASTGAH_DATA.find(d => d.id === 'shor_la');
+  assert.ok(shor);
+  const rootPc = shor.notes[0];
+  const tonicMidi = 60 + rootPc; // 69 (A4)
+  const midis = shor.notes.map(pc => tonicMidi + ((pc - rootPc + 12) % 12));
+  midis.push(tonicMidi + 12);
+
+  // Degrees must be strictly ascending
+  for (let i = 1; i < midis.length; i++) {
+    assert.ok(midis[i] > midis[i - 1], `Degree ${i + 1} (${midis[i]}) must be greater than degree ${i} (${midis[i - 1]})`);
+  }
+
+  // Degree 1 is A4 (MIDI 69), Degree 2 is B4 (MIDI 71), Degree 3 is C5 (MIDI 72, NOT 60!)
+  assert.equal(midis[0], 69);
+  assert.equal(midis[1], 71);
+  assert.equal(midis[2], 72); // C5 (523 Hz), fixes bug where degree 3 was 261 Hz (C4)
+  assert.equal(midis[7], 81); // A5 (880 Hz, Octave)
+});
+
 test('Classical scales and Circle of Fifths contain complete 12 keys', () => {
   assert.ok(CLASSICAL_SCALES_DATA.length >= 13, 'Must contain 12 major keys + chromatic');
   assert.equal(FIFTHS_WHEEL_DATA.length, 12, 'Wheel must contain 12 clock positions');
@@ -82,6 +102,7 @@ test('Rhythm presets have valid hits matching subdivisions, counting text, and m
 
 test('Author and publisher credits are authentic and branded under EnamiX', () => {
   assert.equal(AUTHOR_CREDITS.author, 'ایمان برزجان');
+  assert.equal(AUTHOR_CREDITS.authorTitle, 'آهنگساز، تنظیم‌کننده و پژوهشگر موسیقی');
   assert.equal(AUTHOR_CREDITS.publisher, 'استودیو اینامیکس (EnamiX)');
   assert.equal(AUTHOR_CREDITS.advisor, 'استاد بابک بختیاری');
   assert.ok(AUTHOR_CREDITS.authorWebsite.includes('imanbarzjan.ir'));

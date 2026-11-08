@@ -7,8 +7,8 @@
  */
 
 import React, { useState } from 'react';
-import { Volume2, X, Info, CheckCircle2 } from 'lucide-react';
-import { DastgahScale, PERSIAN_DASTGAH_DATA } from '../utils/pardeheNegarData';
+import { Volume2, X, Info, CheckCircle2, Play, Square } from 'lucide-react';
+import { DastgahScale, PERSIAN_DASTGAH_DATA, NOTE_NAMES } from '../utils/pardeheNegarData';
 import { audioEngine } from '../utils/audioEngine';
 
 interface MicrotonalCentsGuideProps {
@@ -26,6 +26,7 @@ export const MicrotonalCentsGuide: React.FC<MicrotonalCentsGuideProps> = ({
     currentScale?.id || 'shor_la'
   );
   const [auditioningMidi, setAuditioningMidi] = useState<number | null>(null);
+  const [isPlayingFullScale, setIsPlayingFullScale] = useState(false);
 
   if (!isOpen) return null;
 
@@ -37,6 +38,111 @@ export const MicrotonalCentsGuide: React.FC<MicrotonalCentsGuideProps> = ({
     audioEngine.playNote(midi, centOffset, 'violin', 'glissando', 1.2);
     setTimeout(() => setAuditioningMidi(null), 1200);
   };
+
+  const handleToggleFullScale = () => {
+    if (isPlayingFullScale) {
+      audioEngine.stopAll();
+      setIsPlayingFullScale(false);
+      setAuditioningMidi(null);
+      return;
+    }
+
+    const rootPc = targetDastgah.notes[0];
+    const tonicMidi = 60 + rootPc;
+    const scaleMidis = targetDastgah.notes.map(pc => {
+      const semitonesFromTonic = (pc - rootPc + 12) % 12;
+      return tonicMidi + semitonesFromTonic;
+    });
+    // Add octave note
+    scaleMidis.push(tonicMidi + 12);
+
+    setIsPlayingFullScale(true);
+    audioEngine.playScaleSequence(
+      scaleMidis,
+      targetDastgah.microCents || {},
+      'violin',
+      'glissando',
+      (midi) => setAuditioningMidi(midi),
+      () => {
+        setIsPlayingFullScale(false);
+        setAuditioningMidi(null);
+      }
+    );
+  };
+
+  const rootPc = targetDastgah.notes[0];
+  const tonicMidi = 60 + rootPc;
+
+  // Build the strictly ascending degrees from tonic to octave (Degrees 1 to 8)
+  const scaleRows = [
+    ...targetDastgah.notes.map((pc, idx) => {
+      const semitonesFromTonic = (pc - rootPc + 12) % 12;
+      const midi = tonicMidi + semitonesFromTonic;
+      const microCent = targetDastgah.microCents?.[pc] || 0;
+      const freq = audioEngine.midiToFreq(midi, microCent);
+      const intervalCents = semitonesFromTonic * 100 + microCent - (targetDastgah.microCents?.[rootPc] || 0);
+      const isShahed = targetDastgah.shahedMidi ? (targetDastgah.shahedMidi % 12 === pc) : false;
+      const isIst = targetDastgah.istMidi ? (targetDastgah.istMidi % 12 === pc) : false;
+      const isMicro = microCent !== 0;
+
+      let farhatCode = 'M (دوم بزرگ)';
+      if (idx === 0) {
+        farhatCode = 'P1 (پایه / هم‌صدا • ۰¢)';
+      } else if (isMicro) {
+        farhatCode = microCent < 0
+          ? `n (دوم/فاصله خنثی کُرُن • ${Math.round(intervalCents)}¢)`
+          : `N (فاصله خنثای بزرگ سُری • ${Math.round(intervalCents)}¢)`;
+      } else if (idx === 3) {
+        farhatCode = `P4 (چهارم درست • ${Math.round(intervalCents)}¢)`;
+      } else if (idx === 4) {
+        farhatCode = `P5 (پنجم درست • ${Math.round(intervalCents)}¢)`;
+      } else {
+        farhatCode = `${Math.round(intervalCents)}¢ نسبت به پایه`;
+      }
+
+      const noteNameObj = NOTE_NAMES[pc];
+      const defaultLabel = noteNameObj
+        ? `${noteNameObj.natural || noteNameObj.sharp || ''} (${noteNameObj.solfege})`
+        : `نوت ${pc}`;
+      const displayLabel = targetDastgah.microLabels?.[pc]?.letter || defaultLabel;
+
+      return {
+        degreeLabel: `درجه ${idx + 1}`,
+        displayLabel,
+        isMicro,
+        microCent,
+        freq,
+        midi,
+        farhatCode,
+        isShahed,
+        isIst,
+      };
+    }),
+    // Degree 8: Octave
+    (() => {
+      const pc = rootPc;
+      const midi = tonicMidi + 12;
+      const microCent = targetDastgah.microCents?.[pc] || 0;
+      const freq = audioEngine.midiToFreq(midi, microCent);
+      const isMicro = microCent !== 0;
+      const noteNameObj = NOTE_NAMES[pc];
+      const baseName = targetDastgah.microLabels?.[pc]?.letter ||
+        `${noteNameObj?.natural || noteNameObj?.sharp || ''} (${noteNameObj?.solfege || ''})`;
+      const displayLabel = `${baseName} (هنگـام)`;
+
+      return {
+        degreeLabel: 'درجه ۸ (هنگام / اکتاو)',
+        displayLabel,
+        isMicro,
+        microCent,
+        freq,
+        midi,
+        farhatCode: 'P8 (هنگام درست • ۱۲۰۰¢)',
+        isShahed: Boolean(targetDastgah.shahedMidi && (targetDastgah.shahedMidi % 12 === pc)),
+        isIst: Boolean(targetDastgah.istMidi && (targetDastgah.istMidi % 12 === pc)),
+      };
+    })()
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm font-persian overflow-y-auto" dir="rtl">
@@ -84,21 +190,36 @@ export const MicrotonalCentsGuide: React.FC<MicrotonalCentsGuideProps> = ({
             </div>
           </div>
 
-          {/* Dastgah Selector */}
+          {/* Dastgah Selector & Full Scale Player */}
           <div className="bg-[#1C1410] p-4 rounded-xl border border-[#594234]/60 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="text-xs font-bold text-[#E5A836]">
-                انتخاب دستگاه جهت بررسی دقیق درجات و سنت‌ها:
-              </label>
-              <select
-                value={selectedDastgahId}
-                onChange={(e) => setSelectedDastgahId(e.target.value)}
-                className="bg-[#2A1F18] border border-[#594234] rounded-lg px-3 py-1.5 text-xs text-[#F5EEDB] focus:border-[#E5A836] outline-none"
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="text-xs font-bold text-[#E5A836]">
+                  دستگاه / مقام جهت کالیبراسیون درجات:
+                </label>
+                <select
+                  value={selectedDastgahId}
+                  onChange={(e) => setSelectedDastgahId(e.target.value)}
+                  className="bg-[#2A1F18] border border-[#594234] rounded-lg px-3 py-1.5 text-xs text-[#F5EEDB] focus:border-[#E5A836] outline-none"
+                >
+                  {PERSIAN_DASTGAH_DATA.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={handleToggleFullScale}
+                className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition border ${
+                  isPlayingFullScale
+                    ? 'bg-[#8B2635] text-white border-white animate-pulse'
+                    : 'bg-[#D97706] hover:bg-[#E5A836] text-black border-[#E5A836]'
+                }`}
+                title="شنیدن توالی صعودی و نزولی تمامی ۸ درجه گام با کوک دقیق میکروتونال"
               >
-                {PERSIAN_DASTGAH_DATA.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
+                {isPlayingFullScale ? <Square size={13} /> : <Play size={13} />}
+                <span>{isPlayingFullScale ? 'توقف پخش گام' : 'شنیدن توالی صعودی درجات گام'}</span>
+              </button>
             </div>
 
             {/* Scale Tuning & Microtone Matrix Table */}
@@ -106,80 +227,77 @@ export const MicrotonalCentsGuide: React.FC<MicrotonalCentsGuideProps> = ({
               <table className="w-full text-right border-collapse text-xs">
                 <thead>
                   <tr className="bg-[#2A1F18] text-[#E5A836] border-b border-[#594234]">
-                    <th className="p-2.5">درجه گام</th>
+                    <th className="p-2.5">مرتبه و درجه</th>
                     <th className="p-2.5">نوت و نشانه</th>
                     <th className="p-2.5">انحراف سنت (¢)</th>
-                    <th className="p-2.5">فرکانس در اکتاو ۴ (Hz)</th>
+                    <th className="p-2.5">بسامد در گام صعودی (Hz)</th>
                     <th className="p-2.5">فاصله فرهت با پایه</th>
                     <th className="p-2.5">عملکرد ردیفی</th>
                     <th className="p-2.5 text-center">شنیدن</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#594234]/30 text-[#D6C7B2]">
-                  {targetDastgah.notes.map((pc, idx) => {
-                    const midi = 60 + pc;
-                    const microCent = targetDastgah.microCents?.[pc] || 0;
-                    const freq = audioEngine.midiToFreq(midi, microCent);
-                    const isShahed = targetDastgah.shahedMidi && (targetDastgah.shahedMidi % 12 === pc);
-                    const isIst = targetDastgah.istMidi && (targetDastgah.istMidi % 12 === pc);
-                    const isMicro = microCent !== 0;
-
-                    let farhatCode = 'M (دوم بزرگ)';
-                    if (isMicro) {
-                      farhatCode = microCent < 0 ? 'n (دوم خنثی ۱۳۵¢)' : 'N (خنثای بزرگ ۱۶۵¢)';
-                    } else if (idx === 3 || idx === 7) {
-                      farhatCode = 'P (چهارم / پنجم درست)';
-                    }
-
-                    return (
-                      <tr key={idx} className={isMicro ? 'bg-[#8B2635]/20 font-bold' : ''}>
-                        <td className="p-2.5">درجه {idx + 1}</td>
-                        <td className="p-2.5 flex items-center gap-1.5">
-                          <span className="font-mono text-[#FFF5E6]">
-                            {targetDastgah.microLabels?.[pc]?.letter || `نوت ${pc}`}
+                  {scaleRows.map((row, idx) => (
+                    <tr
+                      key={idx}
+                      className={`${
+                        auditioningMidi === row.midi
+                          ? 'bg-[#E5A836]/25 font-bold'
+                          : row.isMicro
+                          ? 'bg-[#8B2635]/15 font-semibold'
+                          : idx === 7
+                          ? 'bg-[#2A1F18]/40'
+                          : ''
+                      } transition`}
+                    >
+                      <td className="p-2.5 font-bold text-[#F5EEDB]">{row.degreeLabel}</td>
+                      <td className="p-2.5 flex items-center gap-1.5">
+                        <span className="font-mono text-[#FFF5E6]">
+                          {row.displayLabel}
+                        </span>
+                        {row.isMicro && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#8B2635] text-white">
+                            میکروتون
                           </span>
-                          {isMicro && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#8B2635] text-white">
-                              میکروتون
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-2.5 font-mono">
-                          {microCent === 0 ? (
-                            <span className="text-gray-400">۰¢ (طبیعی)</span>
-                          ) : (
-                            <span className={microCent < 0 ? 'text-amber-400' : 'text-emerald-400'}>
-                              {microCent > 0 ? `+${microCent}¢` : `${microCent}¢`}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-2.5 font-mono text-[#E5A836]">
-                          {freq.toFixed(2)} Hz
-                        </td>
-                        <td className="p-2.5 text-[11px] text-[#A6937C]">
-                          {farhatCode}
-                        </td>
-                        <td className="p-2.5 text-[11px]">
-                          {isShahed && <span className="text-[#34D399] font-bold">شاهد اصلی • </span>}
-                          {isIst && <span className="text-[#60A5FA] font-bold">ایست نهایی • </span>}
-                          {!isShahed && !isIst && <span className="text-gray-400">متغیر/گردش</span>}
-                        </td>
-                        <td className="p-2.5 text-center">
-                          <button
-                            onClick={() => handleAudition(midi, microCent)}
-                            className={`p-1.5 rounded-lg border transition ${
-                              auditioningMidi === midi
-                                ? 'bg-[#E5A836] text-black border-white'
-                                : 'bg-[#2A1F18] hover:bg-[#3D2E24] text-[#E5A836] border-[#594234]'
-                            }`}
-                            title="شنیدن این نوت با کوک میکروتونال"
-                          >
-                            <Volume2 size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        )}
+                      </td>
+                      <td className="p-2.5 font-mono">
+                        {row.microCent === 0 ? (
+                          <span className="text-gray-400">۰¢ (طبیعی)</span>
+                        ) : (
+                          <span className={row.microCent < 0 ? 'text-amber-400' : 'text-emerald-400'}>
+                            {row.microCent > 0 ? `+${row.microCent}¢` : `${row.microCent}¢`}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2.5 font-mono text-[#E5A836] font-bold">
+                        {row.freq.toFixed(2)} Hz
+                      </td>
+                      <td className="p-2.5 text-[11px] text-[#A6937C]">
+                        {row.farhatCode}
+                      </td>
+                      <td className="p-2.5 text-[11px]">
+                        {row.isShahed && <span className="text-[#34D399] font-bold">شاهد اصلی • </span>}
+                        {row.isIst && <span className="text-[#60A5FA] font-bold">ایست نهایی • </span>}
+                        {!row.isShahed && !row.isIst && (
+                          <span className="text-gray-400">{idx === 7 ? 'هنگام شاهد' : 'متغیر/گردش'}</span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-center">
+                        <button
+                          onClick={() => handleAudition(row.midi, row.microCent)}
+                          className={`p-1.5 rounded-lg border transition ${
+                            auditioningMidi === row.midi
+                              ? 'bg-[#E5A836] text-black border-white shadow-md'
+                              : 'bg-[#2A1F18] hover:bg-[#3D2E24] text-[#E5A836] border-[#594234]'
+                          }`}
+                          title={`شنیدن ${row.displayLabel} با بسامد ${row.freq.toFixed(1)} هرتز`}
+                        >
+                          <Volume2 size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

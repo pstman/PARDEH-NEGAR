@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react';
+import { AUTHOR_CREDITS } from '../utils/pardeheNegarData';
 
 interface TheoryGuideProps {
   onOpenTreatise?: () => void;
@@ -24,7 +25,7 @@ export const TheoryGuide: React.FC<TheoryGuideProps> = ({ onOpenTreatise }) => {
             دانشنامه جامع پرده‌نگار • تئوری بنیادین، جداول مرجع و کتاب‌شناسی
           </h2>
           <p className="text-xs text-[#C4B59D]">
-            پژوهش و تدوین: ایمان برزجان | ناشر: استودیو اینامیکس (EnamiX) | با نظارت علمی و هنری: استاد بابک بختیاری
+            طراح و مؤلف: {AUTHOR_CREDITS.author} ({AUTHOR_CREDITS.authorTitle}) | ناشر: {AUTHOR_CREDITS.publisher} | با نظارت علمی و هنری: {AUTHOR_CREDITS.advisor}
           </p>
         </div>
 

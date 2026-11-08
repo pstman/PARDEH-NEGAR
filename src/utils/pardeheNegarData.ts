@@ -1494,10 +1494,21 @@ export interface RhythmStepHit {
   sound: 'tombak_tom' | 'tombak_bak' | 'daf' | 'clapper';
 }
 
+export interface AccentVariationForm {
+  id: string;
+  label: string;
+  formula: string; // e.g. "3+2+2" or "2+2+3"
+  subdivisions: number[];
+  description: string;
+  countingText: string;
+  mnemonicSyllables: string[];
+  hits: RhythmStepHit[];
+}
+
 export interface RhythmPattern {
   id: string;
   name: string;
-  category: 'persian' | 'balkan';
+  category: 'persian' | 'balkan' | 'complex_aksak';
   timeSignature: string;
   subdivisions: number[];
   tempoDefault: number;
@@ -1506,6 +1517,7 @@ export interface RhythmPattern {
   mnemonicSyllables: string[];
   subdivisionLabels: string[];
   hits: RhythmStepHit[];
+  accentForms?: AccentVariationForm[];
 }
 
 export const RHYTHM_PRESETS: RhythmPattern[] = [
@@ -1527,71 +1539,393 @@ export const RHYTHM_PRESETS: RhythmPattern[] = [
       { step: 3, accent: 'medium', sound: 'daf' },
       { step: 4, accent: 'weak', sound: 'tombak_bak' },
       { step: 5, accent: 'weak', sound: 'tombak_bak' }
+    ],
+    accentForms: [
+      {
+        id: 'form_3_3',
+        label: 'فرم الف: ۳+۳ (کلاسیک)',
+        formula: '۳+۳',
+        subdivisions: [3, 3],
+        description: 'تقسیم متوازن دوگانه سه‌ضربی، ضرب اول سنگین و ضرب چهارم تکیه‌گاه میانی.',
+        countingText: '۱ - ۲ - ۳ | ۴ - ۵ - ۶',
+        mnemonicSyllables: ['تُم', 'بَک', 'بَک', 'تا', 'بَک', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'weak', sound: 'tombak_bak' },
+          { step: 3, accent: 'medium', sound: 'daf' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' },
+          { step: 5, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      },
+      {
+        id: 'form_2_2_2',
+        label: 'فرم ب: ۲+۲+۲ (همیولا / سه‌تایی)',
+        formula: '۲+۲+۲',
+        subdivisions: [2, 2, 2],
+        description: 'شکستن همیولا (Hemiola) که ضرب را به سه جفت دوتایی تفکیک می‌کند.',
+        countingText: '۱ - ۲ | ۳ - ۴ | ۵ - ۶',
+        mnemonicSyllables: ['تُم', 'بَک', 'تَق', 'بَک', 'دف', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'medium', sound: 'clapper' },
+          { step: 3, accent: 'weak', sound: 'tombak_bak' },
+          { step: 4, accent: 'medium', sound: 'daf' },
+          { step: 5, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      }
     ]
   },
   {
-    id: 'reng_6_8',
-    name: 'رنگ اصیل ایرانی (۶/۸ سنگین و مجلسی)',
-    category: 'persian',
-    timeSignature: '6/8',
-    subdivisions: [3, 3],
-    tempoDefault: 104,
-    description: 'قطعه پایانی کنسرت‌های ایرانی، باوقار و شادمانه، اثر استاد درویش‌خان و رکن‌الدین مختاری.',
-    countingText: '۱ - ۲ - ۳ | ۴ - ۵ - ۶ (دا - ران - دی - ری - دان - دان)',
-    mnemonicSyllables: ['تُم', 'بَک', 'بَک', 'دف', 'بَک', 'بَک'],
-    subdivisionLabels: ['ضرب ۱ (سنگین)', 'ضرب ۲', 'ضرب ۳', 'ضرب ۴ (میانی)', 'ضرب ۵', 'ضرب ۶'],
+    id: 'kopanitsa_11_8',
+    name: 'کوپانیتسا اوراسیا (۱۱/۸ لنگ مرکب)',
+    category: 'complex_aksak',
+    timeSignature: '11/8',
+    subdivisions: [2, 2, 3, 2, 2],
+    tempoDefault: 180,
+    description: 'شاهکار اوزان لنگ اوراسیا با ۱۱ ضربه ریز؛ کشش نامتقارن و پایکوبی‌های رقصنده‌های بالکان و قفقاز.',
+    countingText: '۱-۲ ، ۱-۲ ، ۱-۲-۳ ، ۱-۲ ، ۱-۲ (کوتاه - کوتاه - بُلَند - کوتاه - کوتاه)',
+    mnemonicSyllables: ['تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'دف', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک'],
+    subdivisionLabels: ['۱ (کوتاه)', '۲', '۳ (کوتاه)', '۴', '۵ (بُلَند)', '۶', '۷', '۸ (کوتاه)', '۹', '۱۰ (کوتاه)', '۱۱'],
+    hits: [
+      { step: 0, accent: 'strong', sound: 'tombak_tom' },
+      { step: 1, accent: 'weak', sound: 'tombak_bak' },
+      { step: 2, accent: 'medium', sound: 'tombak_tom' },
+      { step: 3, accent: 'weak', sound: 'tombak_bak' },
+      { step: 4, accent: 'strong', sound: 'clapper' },
+      { step: 5, accent: 'weak', sound: 'daf' },
+      { step: 6, accent: 'weak', sound: 'tombak_bak' },
+      { step: 7, accent: 'medium', sound: 'tombak_tom' },
+      { step: 8, accent: 'weak', sound: 'tombak_bak' },
+      { step: 9, accent: 'medium', sound: 'tombak_tom' },
+      { step: 10, accent: 'weak', sound: 'tombak_bak' }
+    ],
+    accentForms: [
+      {
+        id: 'kop_2_2_3_2_2',
+        label: 'فرم الف: ۲+۲+۳+۲+۲ (کشش در قلب ریتم)',
+        formula: '۲+۲+۳+۲+۲',
+        subdivisions: [2, 2, 3, 2, 2],
+        description: 'کشش بلند در میانه ۱۱ ضرب که تعادل پویای حرکات لنگان را برقرار می‌سازد.',
+        countingText: '۱-۲ | ۱-۲ | ۱-۲-۳ | ۱-۲ | ۱-۲',
+        mnemonicSyllables: ['تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'دف', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'medium', sound: 'tombak_tom' },
+          { step: 3, accent: 'weak', sound: 'tombak_bak' },
+          { step: 4, accent: 'strong', sound: 'clapper' },
+          { step: 5, accent: 'weak', sound: 'daf' },
+          { step: 6, accent: 'weak', sound: 'tombak_bak' },
+          { step: 7, accent: 'medium', sound: 'tombak_tom' },
+          { step: 8, accent: 'weak', sound: 'tombak_bak' },
+          { step: 9, accent: 'medium', sound: 'tombak_tom' },
+          { step: 10, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      },
+      {
+        id: 'kop_3_2_2_2_2',
+        label: 'فرم ب: ۳+۲+۲+۲+۲ (کشش در طلیعه دور)',
+        formula: '۳+۲+۲+۲+۲',
+        subdivisions: [3, 2, 2, 2, 2],
+        description: 'آغاز کشیده ۳ ضربی و به دنبال آن چهار جهش دوتایی چابک.',
+        countingText: '۱-۲-۳ | ۱-۲ | ۱-۲ | ۱-۲ | ۱-۲',
+        mnemonicSyllables: ['تُم', 'دف', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'بَک', 'تُم', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'daf' },
+          { step: 2, accent: 'weak', sound: 'tombak_bak' },
+          { step: 3, accent: 'medium', sound: 'tombak_tom' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' },
+          { step: 5, accent: 'medium', sound: 'tombak_tom' },
+          { step: 6, accent: 'weak', sound: 'tombak_bak' },
+          { step: 7, accent: 'strong', sound: 'clapper' },
+          { step: 8, accent: 'weak', sound: 'tombak_bak' },
+          { step: 9, accent: 'medium', sound: 'tombak_tom' },
+          { step: 10, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      },
+      {
+        id: 'kop_2_2_2_2_3',
+        label: 'فرم ج: ۲+۲+۲+۲+۳ (پرش کشیده در فرود)',
+        formula: '۲+۲+۲+۲+۳',
+        subdivisions: [2, 2, 2, 2, 3],
+        description: 'چهار پله کوتاه دوتایی که با پرش کشیده سه‌تایی در فرود قفل می‌شود.',
+        countingText: '۱-۲ | ۱-۲ | ۱-۲ | ۱-۲ | ۱-۲-۳',
+        mnemonicSyllables: ['تُم', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'دف', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'medium', sound: 'tombak_tom' },
+          { step: 3, accent: 'weak', sound: 'tombak_bak' },
+          { step: 4, accent: 'medium', sound: 'tombak_tom' },
+          { step: 5, accent: 'weak', sound: 'tombak_bak' },
+          { step: 6, accent: 'medium', sound: 'tombak_tom' },
+          { step: 7, accent: 'weak', sound: 'tombak_bak' },
+          { step: 8, accent: 'strong', sound: 'clapper' },
+          { step: 9, accent: 'weak', sound: 'daf' },
+          { step: 10, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'aksak_12_8',
+    name: 'دوازده‌هشتم حماسی و لنگ اوراسیا (۱۲/۸)',
+    category: 'complex_aksak',
+    timeSignature: '12/8',
+    subdivisions: [3, 3, 3, 3],
+    tempoDefault: 130,
+    description: 'متر بزرگ دوازده ضربی با شکست‌های ترکیبی و لنگ‌های پیچیده حوزه زاگرس و کارپات.',
+    countingText: '۱-۲-۳ | ۴-۵-۶ | ۷-۸-۹ | ۱۰-۱۱-۱۲ (چهارگانه سه‌ضربی حماسی)',
+    mnemonicSyllables: ['تُم', 'بَک', 'بَک', 'تا', 'بَک', 'بَک', 'دف', 'بَک', 'بَک', 'تَق', 'بَک', 'بَک'],
+    subdivisionLabels: ['۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹', '۱۰', '۱۱', '۱۲'],
     hits: [
       { step: 0, accent: 'strong', sound: 'tombak_tom' },
       { step: 1, accent: 'weak', sound: 'tombak_bak' },
       { step: 2, accent: 'weak', sound: 'tombak_bak' },
       { step: 3, accent: 'medium', sound: 'daf' },
       { step: 4, accent: 'weak', sound: 'tombak_bak' },
-      { step: 5, accent: 'weak', sound: 'tombak_bak' }
+      { step: 5, accent: 'weak', sound: 'tombak_bak' },
+      { step: 6, accent: 'strong', sound: 'tombak_tom' },
+      { step: 7, accent: 'weak', sound: 'tombak_bak' },
+      { step: 8, accent: 'weak', sound: 'tombak_bak' },
+      { step: 9, accent: 'medium', sound: 'clapper' },
+      { step: 10, accent: 'weak', sound: 'tombak_bak' },
+      { step: 11, accent: 'weak', sound: 'tombak_bak' }
+    ],
+    accentForms: [
+      {
+        id: 'form_12_3_3_3_3',
+        label: 'فرم الف: ۳+۳+۳+۳ (ترکیبی ۴ ضربی متقارن)',
+        formula: '۳+۳+۳+۳',
+        subdivisions: [3, 3, 3, 3],
+        description: 'الگوی حماسی کلاسیک با تکیه‌گاه‌های منظم بر ضرب‌های ۱، ۴، ۷ و ۱۰.',
+        countingText: '۱-۲-۳ | ۴-۵-۶ | ۷-۸-۹ | ۱۰-۱۱-۱۲',
+        mnemonicSyllables: ['تُم', 'بَک', 'بَک', 'تا', 'بَک', 'بَک', 'دف', 'بَک', 'بَک', 'تَق', 'بَک', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'weak', sound: 'tombak_bak' },
+          { step: 3, accent: 'medium', sound: 'daf' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' },
+          { step: 5, accent: 'weak', sound: 'tombak_bak' },
+          { step: 6, accent: 'strong', sound: 'tombak_tom' },
+          { step: 7, accent: 'weak', sound: 'tombak_bak' },
+          { step: 8, accent: 'weak', sound: 'tombak_bak' },
+          { step: 9, accent: 'medium', sound: 'clapper' },
+          { step: 10, accent: 'weak', sound: 'tombak_bak' },
+          { step: 11, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      },
+      {
+        id: 'form_12_2_2_2_3_3',
+        label: 'فرم ب: ۲+۲+۲+۳+۳ (لنگ نامتقارن ۵ تکه‌ای)',
+        formula: '۲+۲+۲+۳+۳',
+        subdivisions: [2, 2, 2, 3, 3],
+        description: 'سه ضرب کوتاه دوتایی و دو ضرب کشیده سه‌تایی؛ ریتم ویژه تسامبال‌نوازان لوتاری.',
+        countingText: '۱-۲ | ۳-۴ | ۵-۶ | ۷-۸-۹ | ۱۰-۱۱-۱۲',
+        mnemonicSyllables: ['تُم', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'دف', 'بَک', 'تَق', 'دف', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'medium', sound: 'tombak_tom' },
+          { step: 3, accent: 'weak', sound: 'tombak_bak' },
+          { step: 4, accent: 'medium', sound: 'tombak_tom' },
+          { step: 5, accent: 'weak', sound: 'tombak_bak' },
+          { step: 6, accent: 'strong', sound: 'clapper' },
+          { step: 7, accent: 'weak', sound: 'daf' },
+          { step: 8, accent: 'weak', sound: 'tombak_bak' },
+          { step: 9, accent: 'strong', sound: 'clapper' },
+          { step: 10, accent: 'weak', sound: 'daf' },
+          { step: 11, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      },
+      {
+        id: 'form_12_3_2_2_3_2',
+        label: 'فرم ج: ۳+۲+۲+۳+۲ (لنگ متقاطع ترکیبی)',
+        formula: '۳+۲+۲+۳+۲',
+        subdivisions: [3, 2, 2, 3, 2],
+        description: 'ترکیب تناوبی کشش‌های سه ضربی و دو ضربی در فرم‌های رقص دایره‌ای دانوب.',
+        countingText: '۱-۲-۳ | ۴-۵ | ۶-۷ | ۸-۹-۱۰ | ۱۱-۱۲',
+        mnemonicSyllables: ['تُم', 'بَک', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'دف', 'بَک', 'تُم', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'weak', sound: 'tombak_bak' },
+          { step: 3, accent: 'medium', sound: 'tombak_tom' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' },
+          { step: 5, accent: 'medium', sound: 'tombak_tom' },
+          { step: 6, accent: 'weak', sound: 'tombak_bak' },
+          { step: 7, accent: 'strong', sound: 'clapper' },
+          { step: 8, accent: 'weak', sound: 'daf' },
+          { step: 9, accent: 'weak', sound: 'tombak_bak' },
+          { step: 10, accent: 'medium', sound: 'tombak_tom' },
+          { step: 11, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      }
     ]
   },
   {
-    id: 'kereshmeh_3_4',
-    name: 'کرشمه و تصنیف ۳/۴ (ناز و خرامان)',
-    category: 'persian',
-    timeSignature: '3/4',
-    subdivisions: [1, 1, 1],
-    tempoDefault: 92,
-    description: 'وزن فاعلاتن فاعلاتن با خرامش ویژه که در تمام دستگاه‌های ردیف اجرا می‌شود.',
-    countingText: '۱ - ۲ - ۳ (تُم - تا - تِ | فاعِلاتُن)',
-    mnemonicSyllables: ['تُم', 'تا', 'تِ'],
-    subdivisionLabels: ['ضرب ۱ (قوی)', 'ضرب ۲ (متوسط)', 'ضرب ۳ (ضعیف)'],
+    id: 'aksak_10_8',
+    name: 'ده‌هشتم سه‌لنگه عثمانی و دشتستانی (۱۰/۸)',
+    category: 'complex_aksak',
+    timeSignature: '10/8',
+    subdivisions: [3, 2, 2, 3],
+    tempoDefault: 140,
+    description: 'ایقاع جورجینا (Curcuna) با ده ضربه؛ پلی میان ضربی‌های دشتستان و موسیقی درباری قسطنطنیه.',
+    countingText: '۱-۲-۳ | ۴-۵ | ۶-۷ | ۸-۹-۱۰ (بُلَند - کوتاه - کوتاه - بُلَند)',
+    mnemonicSyllables: ['تُم', 'بَک', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'دف', 'بَک'],
+    subdivisionLabels: ['۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹', '۱۰'],
     hits: [
       { step: 0, accent: 'strong', sound: 'tombak_tom' },
-      { step: 1, accent: 'medium', sound: 'tombak_bak' },
-      { step: 2, accent: 'weak', sound: 'daf' }
+      { step: 1, accent: 'weak', sound: 'tombak_bak' },
+      { step: 2, accent: 'weak', sound: 'tombak_bak' },
+      { step: 3, accent: 'medium', sound: 'tombak_tom' },
+      { step: 4, accent: 'weak', sound: 'tombak_bak' },
+      { step: 5, accent: 'medium', sound: 'tombak_tom' },
+      { step: 6, accent: 'weak', sound: 'tombak_bak' },
+      { step: 7, accent: 'strong', sound: 'clapper' },
+      { step: 8, accent: 'weak', sound: 'daf' },
+      { step: 9, accent: 'weak', sound: 'tombak_bak' }
+    ],
+    accentForms: [
+      {
+        id: 'form_10_3_2_2_3',
+        label: 'فرم الف: ۳+۲+۲+۳ (جورجینا / بسته‌نگار)',
+        formula: '۳+۲+۲+۳',
+        subdivisions: [3, 2, 2, 3],
+        description: 'ساختار متقارن کشیده در دو سر و دو گام چابک در میانه ریتم.',
+        countingText: '۱-۲-۳ | ۴-۵ | ۶-۷ | ۸-۹-۱۰',
+        mnemonicSyllables: ['تُم', 'بَک', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'دف', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'weak', sound: 'tombak_bak' },
+          { step: 3, accent: 'medium', sound: 'tombak_tom' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' },
+          { step: 5, accent: 'medium', sound: 'tombak_tom' },
+          { step: 6, accent: 'weak', sound: 'tombak_bak' },
+          { step: 7, accent: 'strong', sound: 'clapper' },
+          { step: 8, accent: 'weak', sound: 'daf' },
+          { step: 9, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      },
+      {
+        id: 'form_10_2_2_2_2_2',
+        label: 'فرم ب: ۲+۲+۲+۲+۲ (پنج‌ضربی متقارن)',
+        formula: '۲+۲+۲+۲+۲',
+        subdivisions: [2, 2, 2, 2, 2],
+        description: 'تفکیک متقارن پنج گام دوتایی با آکسان‌های تکرارشونده.',
+        countingText: '۱-۲ | ۳-۴ | ۵-۶ | ۷-۸ | ۹-۱۰',
+        mnemonicSyllables: ['تُم', 'بَک', 'تا', 'بَک', 'تُم', 'بَک', 'دف', 'بَک', 'تَق', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'medium', sound: 'daf' },
+          { step: 3, accent: 'weak', sound: 'tombak_bak' },
+          { step: 4, accent: 'strong', sound: 'tombak_tom' },
+          { step: 5, accent: 'weak', sound: 'tombak_bak' },
+          { step: 6, accent: 'medium', sound: 'daf' },
+          { step: 7, accent: 'weak', sound: 'tombak_bak' },
+          { step: 8, accent: 'strong', sound: 'clapper' },
+          { step: 9, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      },
+      {
+        id: 'form_10_2_3_2_3',
+        label: 'فرم ج: ۲+۳+۲+۳ (دو لنگ متوالی)',
+        formula: '۲+۳+۲+۳',
+        subdivisions: [2, 3, 2, 3],
+        description: 'تکرار دو بند متوالی ۵ ضربی (کوتاه-بلند + کوتاه-بلند).',
+        countingText: '۱-۲ | ۳-۴-۵ | ۶-۷ | ۸-۹-۱۰',
+        mnemonicSyllables: ['تُم', 'بَک', 'تَق', 'دف', 'بَک', 'تُم', 'بَک', 'تَق', 'دف', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'strong', sound: 'clapper' },
+          { step: 3, accent: 'weak', sound: 'daf' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' },
+          { step: 5, accent: 'medium', sound: 'tombak_tom' },
+          { step: 6, accent: 'weak', sound: 'tombak_bak' },
+          { step: 7, accent: 'strong', sound: 'clapper' },
+          { step: 8, accent: 'weak', sound: 'daf' },
+          { step: 9, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      }
     ]
   },
   {
-    id: 'zarbi_shur_2_4',
-    name: 'ضربی شور و پایکوبی (۲/۴ متقارن)',
+    id: 'chahar_zarb_4_4',
+    name: 'چهارچهارم و سنکوپ‌های ریتمیک (۴/۴)',
     category: 'persian',
-    timeSignature: '2/4',
-    subdivisions: [2, 2],
-    tempoDefault: 116,
-    description: 'ریتم تند و شفاف با ضرب‌های پرده‌نگاری تمبک و دف.',
-    countingText: '۱ - و - ۲ - و (تُم - بَک - تا - بَک)',
-    mnemonicSyllables: ['تُم', 'بَک', 'تا', 'بَک'],
-    subdivisionLabels: ['ضرب ۱ (پایه)', 'و (بین‌ضرب)', 'ضرب ۲ (تاکید)', 'و (بین‌ضرب)'],
+    timeSignature: '4/4',
+    subdivisions: [2, 2, 2, 2],
+    tempoDefault: 100,
+    description: 'متر چهارضرب پایه با قابلیت ساختارشکنی به فرم‌های سنکوپ‌دار ۳+۳+۲ و همیولایی.',
+    countingText: '۱ - و - ۲ - و - ۳ - و - ۴ - و',
+    mnemonicSyllables: ['تُم', 'بَک', 'تا', 'بَک', 'دف', 'بَک', 'تَق', 'بَک'],
+    subdivisionLabels: ['ضرب ۱', 'و', 'ضرب ۲', 'و', 'ضرب ۳', 'و', 'ضرب ۴', 'و'],
     hits: [
       { step: 0, accent: 'strong', sound: 'tombak_tom' },
       { step: 1, accent: 'weak', sound: 'tombak_bak' },
       { step: 2, accent: 'medium', sound: 'daf' },
-      { step: 3, accent: 'weak', sound: 'tombak_bak' }
+      { step: 3, accent: 'weak', sound: 'tombak_bak' },
+      { step: 4, accent: 'strong', sound: 'tombak_tom' },
+      { step: 5, accent: 'weak', sound: 'tombak_bak' },
+      { step: 6, accent: 'medium', sound: 'clapper' },
+      { step: 7, accent: 'weak', sound: 'tombak_bak' }
+    ],
+    accentForms: [
+      {
+        id: 'form_4_2_2_2_2',
+        label: 'فرم الف: ۲+۲+۲+۲ (متقارن چهار ضربی)',
+        formula: '۲+۲+۲+۲',
+        subdivisions: [2, 2, 2, 2],
+        description: 'چهار ضربه منظم با تکیه بر ضرب‌های ۱ و ۳.',
+        countingText: '۱-و | ۲-و | ۳-و | ۴-و',
+        mnemonicSyllables: ['تُم', 'بَک', 'تا', 'بَک', 'دف', 'بَک', 'تَق', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'medium', sound: 'daf' },
+          { step: 3, accent: 'weak', sound: 'tombak_bak' },
+          { step: 4, accent: 'strong', sound: 'tombak_tom' },
+          { step: 5, accent: 'weak', sound: 'tombak_bak' },
+          { step: 6, accent: 'medium', sound: 'clapper' },
+          { step: 7, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      },
+      {
+        id: 'form_4_3_3_2',
+        label: 'فرم ب: ۳+۳+۲ (شکستن سنکوپ‌دار میلونگا/خلسه)',
+        formula: '۳+۳+۲',
+        subdivisions: [3, 3, 2],
+        description: 'الگوی سنکوپ‌دار جهانی خاورمیانه و حوضه مدیترانه با تأکید بر ضربه‌های ۱، ۴ و ۷.',
+        countingText: '۱-۲-۳ | ۴-۵-۶ | ۷-۸',
+        mnemonicSyllables: ['تُم', 'بَک', 'بَک', 'دف', 'بَک', 'بَک', 'تَق', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'weak', sound: 'tombak_bak' },
+          { step: 3, accent: 'strong', sound: 'daf' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' },
+          { step: 5, accent: 'weak', sound: 'tombak_bak' },
+          { step: 6, accent: 'strong', sound: 'clapper' },
+          { step: 7, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      }
     ]
   },
   {
     id: 'ruchenitsa_7_8',
-    name: 'روچنیتسا بالکان و دانوب (۷/۸ لنگ: ۲+۲+۳)',
+    name: 'روچنیتسا و اوزان هفت‌هشتم (۷/۸ لنگ)',
     category: 'balkan',
     timeSignature: '7/8',
     subdivisions: [2, 2, 3],
     tempoDefault: 140,
-    description: 'ضرب‌آهنگ رقص آیینی بالکان و رومانی با کشش ضرب سوم (کوتاه-کوتاه-بلند).',
+    description: 'ضرب‌آهنگ رقص آیینی بالکان و رومانی با کشش‌های نامتقارن متنوع.',
     countingText: '۱-۲ ، ۱-۲ ، ۱-۲-۳ (کوتاه - کوتاه - بُلَند)',
     mnemonicSyllables: ['تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'بَک', 'دف'],
     subdivisionLabels: ['ضرب ۱', 'ضرب ۲', 'ضرب ۳', 'ضرب ۴', 'ضرب ۵ (پرش)', 'ضرب ۶', 'ضرب ۷'],
@@ -1603,11 +1937,67 @@ export const RHYTHM_PRESETS: RhythmPattern[] = [
       { step: 4, accent: 'strong', sound: 'clapper' },
       { step: 5, accent: 'weak', sound: 'tombak_bak' },
       { step: 6, accent: 'weak', sound: 'daf' }
+    ],
+    accentForms: [
+      {
+        id: 'form_7_2_2_3',
+        label: 'فرم الف: ۲+۲+۳ (راچنیتسا: کوتاه-کوتاه-بلند)',
+        formula: '۲+۲+۳',
+        subdivisions: [2, 2, 3],
+        description: 'کشش نهایی در انتهای دور ریتم که پرش رقص را میسر می‌سازد.',
+        countingText: '۱-۲ | ۱-۲ | ۱-۲-۳',
+        mnemonicSyllables: ['تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'بَک', 'دف'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'medium', sound: 'tombak_tom' },
+          { step: 3, accent: 'weak', sound: 'tombak_bak' },
+          { step: 4, accent: 'strong', sound: 'clapper' },
+          { step: 5, accent: 'weak', sound: 'tombak_bak' },
+          { step: 6, accent: 'weak', sound: 'daf' }
+        ]
+      },
+      {
+        id: 'form_7_3_2_2',
+        label: 'فرم ب: ۳+۲+۲ (شاطری و لزگی: بلند-کوتاه-کوتاه)',
+        formula: '۳+۲+۲',
+        subdivisions: [3, 2, 2],
+        description: 'شروع با کشش سنگین سه‌ضربی و سپس دو گام کوتاه تند.',
+        countingText: '۱-۲-۳ | ۱-۲ | ۱-۲',
+        mnemonicSyllables: ['تُم', 'دف', 'بَک', 'تَق', 'بَک', 'تُم', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'daf' },
+          { step: 2, accent: 'weak', sound: 'tombak_bak' },
+          { step: 3, accent: 'strong', sound: 'clapper' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' },
+          { step: 5, accent: 'medium', sound: 'tombak_tom' },
+          { step: 6, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      },
+      {
+        id: 'form_7_2_3_2',
+        label: 'فرم ج: ۲+۳+۲ (کالاماتیانوس یونانی)',
+        formula: '۲+۳+۲',
+        subdivisions: [2, 3, 2],
+        description: 'کشش بلند در مرکز ریتم، شاخص رقص‌های سنتی سواحل اژه.',
+        countingText: '۱-۲ | ۱-۲-۳ | ۱-۲',
+        mnemonicSyllables: ['تُم', 'بَک', 'تَق', 'دف', 'بَک', 'تُم', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'strong', sound: 'clapper' },
+          { step: 3, accent: 'weak', sound: 'daf' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' },
+          { step: 5, accent: 'medium', sound: 'tombak_tom' },
+          { step: 6, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      }
     ]
   },
   {
     id: 'paidushko_5_8',
-    name: 'پایدوشکو کارپات (۵/۸ لنگ: ۲+۳)',
+    name: 'پایدوشکو کارپات (۵/۸ لنگ)',
     category: 'balkan',
     timeSignature: '5/8',
     subdivisions: [2, 3],
@@ -1622,11 +2012,45 @@ export const RHYTHM_PRESETS: RhythmPattern[] = [
       { step: 2, accent: 'strong', sound: 'clapper' },
       { step: 3, accent: 'weak', sound: 'tombak_bak' },
       { step: 4, accent: 'weak', sound: 'daf' }
+    ],
+    accentForms: [
+      {
+        id: 'form_5_2_3',
+        label: 'فرم الف: ۲+۳ (کوتاه-بلند: پایدوشکو)',
+        formula: '۲+۳',
+        subdivisions: [2, 3],
+        description: 'گام کوتاه آغازین و جهش کشیده بلند پایانی.',
+        countingText: '۱-۲ | ۱-۲-۳',
+        mnemonicSyllables: ['تُم', 'بَک', 'تَق', 'بَک', 'دف'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'strong', sound: 'clapper' },
+          { step: 3, accent: 'weak', sound: 'tombak_bak' },
+          { step: 4, accent: 'weak', sound: 'daf' }
+        ]
+      },
+      {
+        id: 'form_5_3_2',
+        label: 'فرم ب: ۳+۲ (بلند-کوتاه: چرخ لنگ)',
+        formula: '۳+۲',
+        subdivisions: [3, 2],
+        description: 'آغاز کشیده سه‌تایی و فرود دوگانه تند.',
+        countingText: '۱-۲-۳ | ۱-۲',
+        mnemonicSyllables: ['تُم', 'دف', 'بَک', 'تَق', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'daf' },
+          { step: 2, accent: 'weak', sound: 'tombak_bak' },
+          { step: 3, accent: 'strong', sound: 'clapper' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      }
     ]
   },
   {
     id: 'daichovo_9_8',
-    name: 'دایچوو هورو (۹/۸ لنگ: ۲+۲+۲+۳)',
+    name: 'کارشی‌لاما و دایچوو (۹/۸ لنگ)',
     category: 'balkan',
     timeSignature: '9/8',
     subdivisions: [2, 2, 2, 3],
@@ -1645,6 +2069,48 @@ export const RHYTHM_PRESETS: RhythmPattern[] = [
       { step: 6, accent: 'strong', sound: 'clapper' },
       { step: 7, accent: 'weak', sound: 'daf' },
       { step: 8, accent: 'weak', sound: 'tombak_bak' }
+    ],
+    accentForms: [
+      {
+        id: 'form_9_2_2_2_3',
+        label: 'فرم الف: ۲+۲+۲+۳ (کارشی‌لاما)',
+        formula: '۲+۲+۲+۳',
+        subdivisions: [2, 2, 2, 3],
+        description: 'سه ضرب کوتاه دوتایی و فرود کشیده سه‌تایی.',
+        countingText: '۱-۲ | ۱-۲ | ۱-۲ | ۱-۲-۳',
+        mnemonicSyllables: ['تُم', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک', 'تَق', 'دف', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'tombak_bak' },
+          { step: 2, accent: 'medium', sound: 'tombak_tom' },
+          { step: 3, accent: 'weak', sound: 'tombak_bak' },
+          { step: 4, accent: 'medium', sound: 'tombak_tom' },
+          { step: 5, accent: 'weak', sound: 'tombak_bak' },
+          { step: 6, accent: 'strong', sound: 'clapper' },
+          { step: 7, accent: 'weak', sound: 'daf' },
+          { step: 8, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      },
+      {
+        id: 'form_9_3_2_2_2',
+        label: 'فرم ب: ۳+۲+۲+۲ (آق‌ساق کشیده آغازین)',
+        formula: '۳+۲+۲+۲',
+        subdivisions: [3, 2, 2, 2],
+        description: 'شروع با کشش سه‌ضربی و سه گام کوتاه دوتایی.',
+        countingText: '۱-۲-۳ | ۱-۲ | ۱-۲ | ۱-۲',
+        mnemonicSyllables: ['تُم', 'دف', 'بَک', 'تَق', 'بَک', 'تُم', 'بَک', 'تُم', 'بَک'],
+        hits: [
+          { step: 0, accent: 'strong', sound: 'tombak_tom' },
+          { step: 1, accent: 'weak', sound: 'daf' },
+          { step: 2, accent: 'weak', sound: 'tombak_bak' },
+          { step: 3, accent: 'strong', sound: 'clapper' },
+          { step: 4, accent: 'weak', sound: 'tombak_bak' },
+          { step: 5, accent: 'medium', sound: 'tombak_tom' },
+          { step: 6, accent: 'weak', sound: 'tombak_bak' },
+          { step: 7, accent: 'medium', sound: 'tombak_tom' },
+          { step: 8, accent: 'weak', sound: 'tombak_bak' }
+        ]
+      }
     ]
   }
 ];
@@ -1653,7 +2119,7 @@ export const AUTHOR_CREDITS = {
   softwareName: 'پرده‌نگار • سامانه جامع انطباق پیانو، ویولن و ردیف موسیقی ایرانی',
   softwareVersion: '3.5.0 (ویرایش پژوهشی دانشنامه‌ای)',
   author: 'ایمان برزجان',
-  authorTitle: 'نرم‌افزارنویس، طراح سامانه‌های آموزشی موسیقی و پژوهشگر',
+  authorTitle: 'آهنگساز، تنظیم‌کننده و پژوهشگر موسیقی',
   authorWebsite: 'https://imanbarzjan.ir',
   publisher: 'استودیو اینامیکس (EnamiX)',
   publisherTitle: 'استودیو طراحی و تولید محتوای هوشمند موسیقی اینامیکس',

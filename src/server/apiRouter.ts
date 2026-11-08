@@ -244,6 +244,135 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
       }
     }
 
+    // ==================== PODCAST EPISODES API ====================
+
+    // GET /api/podcasts
+    if (path === '/api/podcasts' && method === 'GET') {
+      const podcasts = await db.getAllPodcasts();
+      return jsonResponse(
+        { success: true, podcasts },
+        200,
+        { 'Cache-Control': 'public, max-age=15, stale-while-revalidate=60' }
+      );
+    }
+
+    // POST /api/podcasts (Create)
+    if (path === '/api/podcasts' && method === 'POST') {
+      let body: any = {};
+      try {
+        body = await request.json();
+      } catch {
+        return jsonResponse({ success: false, message: 'قالب داده نامعتبر است.' }, 400);
+      }
+
+      if (!verifyAdmin(request, body, env)) {
+        return jsonResponse({ success: false, message: 'دسترسی غیرمجاز: کلمه عبور مدیریت نادرست است.' }, 401);
+      }
+
+      if (!body.title || !body.title.trim()) {
+        return jsonResponse({ success: false, message: 'عنوان قطعه صوتی الزامی است.' }, 400);
+      }
+
+      if (!body.audioUrl || !body.audioUrl.trim()) {
+        return jsonResponse({ success: false, message: 'نشانی مستقیم فایل صوتی (.mp3 یا .m4a) الزامی است.' }, 400);
+      }
+
+      const newPodcast = await db.createPodcast(body);
+      return jsonResponse(
+        {
+          success: true,
+          podcast: newPodcast,
+          message: 'قطعه صوتی با موفقیت در پایگاه داده افزوده شد.',
+        },
+        201
+      );
+    }
+
+    // POST /api/podcasts/reset (Reset)
+    if (path === '/api/podcasts/reset' && method === 'POST') {
+      let body: any = {};
+      try {
+        body = await request.json();
+      } catch {
+        // ok
+      }
+
+      if (!verifyAdmin(request, body, env)) {
+        return jsonResponse({ success: false, message: 'دسترسی غیرمجاز: کلمه عبور مدیریت نادرست است.' }, 401);
+      }
+
+      const seeded = await db.resetPodcastsToSeed();
+      return jsonResponse({
+        success: true,
+        podcasts: seeded,
+        message: 'فهرست قطعات صوتی به نسخه‌های پیش‌فرض بازنشانی شد.',
+      });
+    }
+
+    // Routes with :id for podcasts
+    const singlePodMatch = path.match(/^\/api\/podcasts\/([a-zA-Z0-9_\-]+)$/);
+    if (singlePodMatch) {
+      const podId = singlePodMatch[1];
+
+      // GET /api/podcasts/:id
+      if (method === 'GET') {
+        const podcast = await db.getPodcastById(podId);
+        if (!podcast) {
+          return jsonResponse({ success: false, message: 'قطعه صوتی مورد نظر یافت نشد.' }, 404);
+        }
+        return jsonResponse({ success: true, podcast });
+      }
+
+      // PUT /api/podcasts/:id
+      if (method === 'PUT') {
+        let body: any = {};
+        try {
+          body = await request.json();
+        } catch {
+          return jsonResponse({ success: false, message: 'قالب داده نامعتبر است.' }, 400);
+        }
+
+        if (!verifyAdmin(request, body, env)) {
+          return jsonResponse({ success: false, message: 'دسترسی غیرمجاز: کلمه عبور مدیریت نادرست است.' }, 401);
+        }
+
+        const updated = await db.updatePodcast(podId, body);
+        if (!updated) {
+          return jsonResponse({ success: false, message: 'قطعه صوتی مورد نظر یافت نشد.' }, 404);
+        }
+
+        return jsonResponse({
+          success: true,
+          podcast: updated,
+          message: 'اطلاعات قطعه صوتی با موفقیت به‌روزرسانی شد.',
+        });
+      }
+
+      // DELETE /api/podcasts/:id
+      if (method === 'DELETE') {
+        let body: any = {};
+        try {
+          body = await request.json();
+        } catch {
+          // ok
+        }
+
+        if (!verifyAdmin(request, body, env)) {
+          return jsonResponse({ success: false, message: 'دسترسی غیرمجاز: کلمه عبور مدیریت نادرست است.' }, 401);
+        }
+
+        const deleted = await db.deletePodcast(podId);
+        if (!deleted) {
+          return jsonResponse({ success: false, message: 'قطعه صوتی مورد نظر جهت حذف یافت نشد.' }, 404);
+        }
+
+        return jsonResponse({
+          success: true,
+          message: 'قطعه صوتی با موفقیت حذف گردید.',
+        });
+      }
+    }
+
     // Not Found
     return jsonResponse({ success: false, message: 'مسیر API مورد نظر یافت نشد.' }, 404);
   } catch (err: any) {

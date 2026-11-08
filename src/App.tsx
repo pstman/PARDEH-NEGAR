@@ -13,6 +13,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Header, MainTabType } from './components/Header';
 import { PianoKeyboard } from './components/PianoKeyboard';
 import { ViolinFingerboard } from './components/ViolinFingerboard';
+import { InstrumentShowcasePanel } from './components/InstrumentShowcasePanel';
+import { MusicalAstrolabe } from './components/MusicalAstrolabe';
+import { EurasianInstrumentsHall } from './components/EurasianInstrumentsHall';
+import { CentsCalibrationHall } from './components/CentsCalibrationHall';
 import { CircleOfFifths } from './components/CircleOfFifths';
 import { DaramadGallery } from './components/DaramadGallery';
 import { RhythmGenerator } from './components/RhythmGenerator';
@@ -79,10 +83,12 @@ export default function App() {
         setActiveTab('blog');
       } else if (hash.includes('continuum') || hash.includes('map')) {
         setActiveTab('continuum_map');
+      } else if (hash.includes('instruments') || hash.includes('eurasian')) {
+        setActiveTab('eurasian_instruments');
+      } else if (hash.includes('cents') || hash.includes('daramad')) {
+        setActiveTab('cents_calibration');
       } else if (hash.includes('rhythm')) {
         setActiveTab('rhythm_engine');
-      } else if (hash.includes('daramad')) {
-        setActiveTab('daramad_motifs');
       } else if (hash.includes('circle')) {
         setActiveTab('circle_fifths');
       }
@@ -170,14 +176,14 @@ export default function App() {
     }
 
     setIsPlayingScale(true);
-    const baseMidi = 60;
-    const scaleNotes: number[] = [];
-
-    const sortedPitchClasses = [...currentScale.notes].sort((a, b) => a - b);
-    sortedPitchClasses.forEach(pc => {
-      scaleNotes.push(baseMidi + pc);
+    const tonicPc = currentScale.notes[0];
+    const tonicMidi = 60 + tonicPc;
+    const scaleNotes: number[] = currentScale.notes.map(pc => {
+      const semitonesFromTonic = (pc - tonicPc + 12) % 12;
+      return tonicMidi + semitonesFromTonic;
     });
-    scaleNotes.push(baseMidi + sortedPitchClasses[0] + 12);
+    // Add octave note to complete the ascending scale
+    scaleNotes.push(tonicMidi + 12);
 
     const microCents = ('microCents' in currentScale && currentScale.microCents)
       ? currentScale.microCents
@@ -259,7 +265,7 @@ export default function App() {
                 {/* 1. Main Category Dropdown */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-[#E5A836] block">
-                    ۱. سیستم موسیقی (ایرانی یا غربی):
+                    ۱. دستگاه خنیاگری (ایرانی یا غربی):
                   </label>
                   <select
                     value={activeCategory}
@@ -306,7 +312,7 @@ export default function App() {
                 {/* 3. Instrument Timbre Selector */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-[#E5A836] block">
-                    ۳. ساز و جنس صدا (Timbre):
+                    ۳. ساز و طنین نوا (Timbre):
                   </label>
                   <select
                     value={soundTimbre}
@@ -398,12 +404,24 @@ export default function App() {
                 <div className="w-16 h-16 rounded-full bg-[#2A1F18] border border-[#E5A836] flex items-center justify-center mx-auto text-3xl">
                   🎼
                 </div>
-                <div className="max-w-xl mx-auto space-y-2">
+                <div className="max-w-2xl mx-auto space-y-3">
                   <h3 className="text-lg sm:text-xl font-black text-[#F5EEDB]">
                     به سامانه تخصصی پرده‌نگار خوش آمدید
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#C4B59D] leading-relaxed">
-                    برای شروع کاوش آکوستیک، لطفاً از کادرهای بالا یک سیستم موسیقی و دستگاه یا گام را انتخاب نمایید، یا بر روی یکی از نمونه‌های پیشنهادی زیر کلیک فرمایید:
+
+                  {/* یادداشت پاسداشت زبان پارسی و فرهنگ‌سازی واژگانی */}
+                  <div className="p-3 sm:p-3.5 rounded-xl bg-[#201813]/90 border border-[#E5A836]/40 text-[#EDE0C8] text-xs leading-relaxed text-right sm:text-center shadow-md">
+                    <p className="text-[#E5A836] font-bold mb-1 flex items-center justify-center gap-1.5 text-xs">
+                      <span>✒️</span>
+                      <span>رویکرد زبانی و پاسداشت زبان پارسی</span>
+                    </p>
+                    <p className="text-[#C4B59D] text-[11px] sm:text-xs leading-relaxed">
+                      به‌پاس ارج‌نهادن به دیرینگی و شکوه زبان پارسی و در راستای فرهنگ‌سازی برای به‌کارگیری واژگان بومی، در نگارش سراسر این سامانه از واژگان اصیل و پالوده پارسی بهره گرفته شده و کاربرد واژگان غیرفارسی تنها به اصطلاحات ناگزیر و جهانی دانش موسیقی و سازشناسی تطبیقی (ارگانولوژی) محدود گردیده است.
+                    </p>
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-[#C4B59D] leading-relaxed pt-1">
+                    برای آغاز کاوش آکوستیک، لطفاً از کادرهای بالا دستگاه خنیاگری و دستگاه یا گام را برگزینید، یا بر روی یکی از نمونه‌های پیشنهادی زیر کلیک فرمایید:
                   </p>
                 </div>
 
@@ -518,37 +536,21 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 51-Key Piano Keyboard Component */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-[#E5A836] px-1">
-                    <span>کلاویه‌های ۵۱ گانه پیانو (وسعت ۴ اکتاو کامل + ۳ کلید پایه):</span>
-                    <span className="text-[#A6937C]">کلیک برای نواختن مستقیم هر نوت</span>
-                  </div>
-                  <PianoKeyboard
-                    currentScale={currentScale}
-                    isPersian={activeCategory === 'persian'}
-                    namingMode={namingMode}
-                    accidentalMode={accidentalMode}
-                    soundTimbre={soundTimbre}
-                    articulation={articulation}
-                    highlightedMidi={highlightedMidi}
-                    onKeyPlayed={handleKeyPlayed}
-                  />
-                </div>
+                {/* Dynamic Multi-Instrument Showcase (Piano, Violin, Tar, Setar, Tanbur, Santur) & Museum Aesthetic Panel */}
+                <InstrumentShowcasePanel
+                  currentScale={currentScale}
+                  soundTimbre={soundTimbre}
+                  articulation={articulation}
+                  namingMode={namingMode}
+                  onKeyPlayed={handleKeyPlayed}
+                />
 
-                {/* Violin Fingerboard Component */}
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-[#E5A836] px-1">
-                    <span>گریف ویولن، کوک‌های ۴ سیم و پرده‌بندی فواصل:</span>
-                    <span className="text-[#A6937C]">سیم ۱ (می/زیر) تا سیم ۴ (سل/بم)</span>
-                  </div>
-                  <ViolinFingerboard
-                    currentScale={currentScale}
-                    isPersian={activeCategory === 'persian'}
+                {/* Tonal Cosmography & Musical Astrolabe Component */}
+                <div className="pt-2">
+                  <MusicalAstrolabe
+                    currentScale={selectedPersianDastgah}
                     soundTimbre={soundTimbre}
-                    articulation={articulation}
-                    namingMode={namingMode}
-                    onNotePlayed={handleKeyPlayed}
+                    onSelectMidi={(m) => setHighlightedMidi(m)}
                   />
                 </div>
               </>
@@ -579,9 +581,14 @@ export default function App() {
           />
         )}
 
-        {/* Tab 3: Comprehensive Daramad & Pishdaramad Gallery */}
-        {activeTab === 'daramad_motifs' && (
-          <DaramadGallery
+        {/* Tab: Eurasian Instruments Hall (تالار جامع سازهای اوراسیا) */}
+        {activeTab === 'eurasian_instruments' && (
+          <EurasianInstrumentsHall />
+        )}
+
+        {/* Tab: Cents Calibration & Daramad Motifs (تالار فواصل، کالیبراسیون سُنت‌ها و درآمدهای ردیف) */}
+        {(activeTab === 'cents_calibration' || activeTab === 'daramad_motifs') && (
+          <CentsCalibrationHall
             selectedDastgahId={selectedPersianId}
             onSelectDastgah={(dastgah) => {
               setActiveCategory('persian');

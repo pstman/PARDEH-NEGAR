@@ -16,10 +16,12 @@ import {
   SUPPORTED_LANGUAGES, 
   TRANSLATIONS 
 } from '../utils/i18n';
-import { Globe, BookOpen, Sliders, FileText, Download, Maximize2 } from 'lucide-react';
+import { Globe, BookOpen, Sliders, FileText, Download, Maximize2, Music } from 'lucide-react';
 
 export type MainTabType = 
   | 'piano_violin' 
+  | 'eurasian_instruments'
+  | 'cents_calibration'
   | 'daramad_motifs' 
   | 'circle_fifths' 
   | 'rhythm_engine' 
@@ -126,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onOpenCentsGuide}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1F1914] hover:bg-[#2C231C] text-[#38BDF8] border border-[#0284C7]/50 font-bold transition shadow-sm"
-            title="بررسی دقیق انحراف سنت‌ها و ابعاد پنج‌گانه هرمز فرهت"
+            title="سنجش دقیق سنت‌ها و فواصل پنج‌گانه هرمز فرهت"
           >
             <Sliders size={14} />
             <span className="hidden sm:inline">{t.centsGuideBtn}</span>
@@ -177,9 +179,20 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         <button
-          onClick={() => onSelectTab('daramad_motifs')}
+          onClick={() => onSelectTab('eurasian_instruments')}
           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap border ${
-            activeTab === 'daramad_motifs'
+            activeTab === 'eurasian_instruments'
+              ? 'bg-[#8B2635] text-[#FFF5E6] border-[#E5A836] shadow-md'
+              : 'bg-[#221A15] text-[#C4B59D] border-[#594234]/50 hover:bg-[#2C211B]'
+          }`}
+        >
+          {t.tabInstrumentsHall}
+        </button>
+
+        <button
+          onClick={() => onSelectTab('cents_calibration')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap border ${
+            activeTab === 'cents_calibration' || activeTab === 'daramad_motifs'
               ? 'bg-[#8B2635] text-[#FFF5E6] border-[#E5A836] shadow-md'
               : 'bg-[#221A15] text-[#C4B59D] border-[#594234]/50 hover:bg-[#2C211B]'
           }`}

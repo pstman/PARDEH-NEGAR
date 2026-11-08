@@ -3,8 +3,8 @@
  * Optimized for serverless edge execution with global replication and zero-latency caching.
  */
 
-import { BlogPost } from './types';
-import { SEED_BLOG_POSTS } from './seedData';
+import { BlogPost, PodcastEpisode } from './types';
+import { SEED_BLOG_POSTS, SEED_PODCAST_EPISODES } from './seedData';
 
 export const KV_BLOG_POSTS_KEY = 'blog_posts';
 export const KV_POST_PREFIX = 'post:';
@@ -188,4 +188,133 @@ export class BlogKvDatabase {
     inMemoryPostsCache = [...SEED_BLOG_POSTS];
     return inMemoryPostsCache;
   }
+
+  // ==================== PODCAST EPISODES (Dynamic Audio) ====================
+
+  async getAllPodcasts(): Promise<PodcastEpisode[]> {
+    if (!this.kv) {
+      if (!inMemoryPodcastsCache) {
+        inMemoryPodcastsCache = [...SEED_PODCAST_EPISODES];
+      }
+      return inMemoryPodcastsCache || [];
+    }
+
+    try {
+      const data = await this.kv.get(KV_PODCASTS_KEY, 'json');
+      if (Array.isArray(data) && data.length > 0) {
+        return data as PodcastEpisode[];
+      }
+    } catch (err) {
+      console.error('[BlogKvDatabase] Error reading podcasts from KV:', err);
+    }
+
+    try {
+      await this.kv.put(KV_PODCASTS_KEY, JSON.stringify(SEED_PODCAST_EPISODES));
+      for (const ep of SEED_PODCAST_EPISODES) {
+        await this.kv.put(`${KV_PODCAST_PREFIX}${ep.id}`, JSON.stringify(ep));
+      }
+    } catch (err) {
+      console.error('[BlogKvDatabase] Error seeding podcasts to KV:', err);
+    }
+
+    return SEED_PODCAST_EPISODES;
+  }
+
+  async getPodcastById(id: string): Promise<PodcastEpisode | null> {
+    if (!id) return null;
+    const podcasts = await this.getAllPodcasts();
+    return podcasts.find(p => p.id === id) || null;
+  }
+
+  async createPodcast(data: Partial<PodcastEpisode>): Promise<PodcastEpisode> {
+    const podcasts = await this.getAllPodcasts();
+    const id = data.id || `pod_${Date.now()}`;
+    const newEp: PodcastEpisode = {
+      id,
+      title: data.title || 'قطعه صوتی جدید',
+      description: data.description || '',
+      audioUrl: data.audioUrl || '',
+      durationSeconds: data.durationSeconds || 180,
+      durationFormatted: data.durationFormatted || '۰۳:۰۰',
+      fileSizeMb: data.fileSizeMb || 3.5,
+      chapterId: data.chapterId,
+      chapterTitle: data.chapterTitle,
+      speaker: data.speaker || 'ایمان برزجان',
+      recordedDate: data.recordedDate || new Date().toLocaleDateString('fa-IR'),
+      isPublished: data.isPublished !== false,
+      stationRegion: data.stationRegion || 'iran_plateau',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    podcasts.unshift(newEp);
+
+    if (this.kv) {
+      await this.kv.put(KV_PODCASTS_KEY, JSON.stringify(podcasts));
+      await this.kv.put(`${KV_PODCAST_PREFIX}${id}`, JSON.stringify(newEp));
+    } else {
+      inMemoryPodcastsCache = podcasts;
+    }
+
+    return newEp;
+  }
+
+  async updatePodcast(id: string, updates: Partial<PodcastEpisode>): Promise<PodcastEpisode | null> {
+    const podcasts = await this.getAllPodcasts();
+    const index = podcasts.findIndex(p => p.id === id);
+    if (index === -1) return null;
+
+    const updated: PodcastEpisode = {
+      ...podcasts[index],
+      ...updates,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    podcasts[index] = updated;
+
+    if (this.kv) {
+      await this.kv.put(KV_PODCASTS_KEY, JSON.stringify(podcasts));
+      await this.kv.put(`${KV_PODCAST_PREFIX}${id}`, JSON.stringify(updated));
+    } else {
+      inMemoryPodcastsCache = podcasts;
+    }
+
+    return updated;
+  }
+
+  async deletePodcast(id: string): Promise<boolean> {
+    const podcasts = await this.getAllPodcasts();
+    const filtered = podcasts.filter(p => p.id !== id);
+    if (filtered.length === podcasts.length) return false;
+
+    if (this.kv) {
+      await this.kv.put(KV_PODCASTS_KEY, JSON.stringify(filtered));
+      try {
+        await this.kv.delete(`${KV_PODCAST_PREFIX}${id}`);
+      } catch (err) {
+        console.warn(`[BlogKvDatabase] Could not delete podcast key ${id}:`, err);
+      }
+    } else {
+      inMemoryPodcastsCache = filtered;
+    }
+
+    return true;
+  }
+
+  async resetPodcastsToSeed(): Promise<PodcastEpisode[]> {
+    if (this.kv) {
+      await this.kv.put(KV_PODCASTS_KEY, JSON.stringify(SEED_PODCAST_EPISODES));
+      for (const ep of SEED_PODCAST_EPISODES) {
+        await this.kv.put(`${KV_PODCAST_PREFIX}${ep.id}`, JSON.stringify(ep));
+      }
+    }
+    inMemoryPodcastsCache = [...SEED_PODCAST_EPISODES];
+    return inMemoryPodcastsCache || [];
+  }
 }
+
+export const KV_PODCASTS_KEY = 'podcasts_list';
+export const KV_PODCAST_PREFIX = 'podcast:';
+let inMemoryPodcastsCache: PodcastEpisode[] | null = null;
+

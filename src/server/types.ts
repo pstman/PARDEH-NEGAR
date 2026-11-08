@@ -26,6 +26,24 @@ export interface BlogPost {
   updatedAt?: string;
 }
 
+export interface PodcastEpisode {
+  id: string;
+  title: string;
+  description: string;
+  audioUrl: string;
+  durationSeconds: number;
+  durationFormatted: string;
+  fileSizeMb?: number;
+  chapterId?: string;
+  chapterTitle?: string;
+  speaker: string;
+  recordedDate: string;
+  isPublished: boolean;
+  stationRegion?: 'iran_plateau' | 'alans_steppes' | 'mesopotamia' | 'danube_basin';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface Env {
   BLOG_KV?: any; // Cloudflare KVNamespace
   ASSETS?: any;  // Cloudflare Static Assets Fetcher
@@ -33,3 +51,4 @@ export interface Env {
   VITE_MODIRIAT_ADMIN?: string;
   [key: string]: any;
 }
+
